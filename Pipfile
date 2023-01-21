@@ -1,0 +1,31 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[[source]]
+url = "https://bcms.bloomberg.com/pip/simple"
+verify_ssl = true
+name = "bcmsbloomberg"
+
+[packages]
+pandas = "*"
+psycopg = "*"
+python-dotenv = "*"
+blpapi = {version = "*", index = "bcmsbloomberg"}
+numpy = "*"
+requests = "*"
+
+[dev-packages]
+pandas = "*"
+psycopg = "*"
+python-dotenv = "*"
+blpapi = {version = "*", index = "bcmsbloomberg"}
+numpy = "*"
+requests = "*"
+jupyterlab = "*"
+ipython = "*"
+ipykernel = "*"
+
+[requires]
+python_version = "3.11"
