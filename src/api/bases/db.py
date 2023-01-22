@@ -6,7 +6,6 @@ from psycopg.sql import SQL, Identifier, Composed
 from psycopg.rows import RowMaker, tuple_row, dict_row, class_row, args_row, kwargs_row
 from dataclasses import dataclass
 from typing import Optional, Sequence, Union, Any, Callable, Self
-from types import MappingProxyType
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
