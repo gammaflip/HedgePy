@@ -4,8 +4,8 @@ import importlib
 import config
 from typing import Optional, Literal, Any
 from types import FunctionType, ModuleType
-from api.bases.data import Packet
-from api.bases.db import Database
+from data.bases.data import Packet
+from data.bases.db import Database
 
 
 class Vendor:

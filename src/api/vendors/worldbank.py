@@ -3,7 +3,7 @@
 
 import requests
 from typing import Union, Optional
-from api.bases.data import Packet
+from data.bases.data import Packet
 
 
 ROOT = "http://api.worldbank.org/v2/"

@@ -1,4 +1,4 @@
-import api.vendors.bloomberg as bbg
+import data.vendors.bloomberg as bbg
 
 client = bbg.Client()
 

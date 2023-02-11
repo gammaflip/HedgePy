@@ -13,23 +13,6 @@ from enum import StrEnum
 
 
 """
-SCHEMAS
-"""
-
-class SQLTablespaces(StrEnum):
-    PRIMARY = 'pg_default'
-
-
-@dataclass
-class SQLObjectTree: 
-    database: str | list | None
-    schema: str | list | None
-    table: str | list | None
-    column: str | list | None
-    index: Any | tuple | list | None
-
-
-"""
 ADDITIONAL ROW FACTORIES
 """
 
@@ -64,41 +47,11 @@ def value_row(cursor: Cursor) -> RowMaker:
 MIXINS, BASES 
 """
 
-class SQLObject(ABC):
-
-    def __init__(self, name: str, parent: Optional[Self] = None):
-        """Args:
-            name (str): Corresponds to name in PostgreSQL. 
-            parent (Optional[Self], optional): Used to populate tree. 
-            Must subclass SQLObject. None only when instantiating 
-            Database objects. 
-        """
-        self._name: str = name
-        self._metadata, self._tree = self._resolve_args()
-
-    @abstractmethod
-    def _resolve_args(self, name, parent) -> tuple[dict, SQLObjectTree]: 
-        """To subclass SQLObject, implement _resolve_args such that it 
-        populates self._metadata and self._tree"""
-        ...
-
-    @property
-    def name(self): return self._name
-
-    @property
-    def identifier(self): return Identifier(self.name)
-
-    @property
-    def tree(self): return self._tree
-
-    @property
-    def metadata(self): return self._metadata
-
 
 class SQLConnection:
     
-    def __init__(self, url: str, autocommit: bool = False):
-        self._url = url  # NOTE: this contains password and will be refactored
+    def __init__(self, user: SQLUser, password: str, autocommit: bool = False):
+        self._url = user.url(password)  # NOTE: this contains password and will be refactored
         self._autocommit = autocommit
         self._endpoint = psycopg.connect
 
@@ -110,72 +63,47 @@ class SQLConnection:
 
 
 @dataclass
-class SQLUser:
-    name: str
+class SQLObjectTree: 
+    database: str | list | None = None
+    schema: str | list | None = None
+    table: str | list | None = None
+    column: str | list | None = None
+    index: Any | tuple | list | None = None
 
-    def url(self, password: str):
-        # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
-        return f'postgres://{self.name}:{password}@localhost/'  
 
-
-class IDBObject(ABC):
-    _name: str
-    _parent: Any
-
-    def __str__(self): return f'{self.__class__.__name__}: {self.name}'
-
-    def __repr__(self): return self.__str__()
-
-    @property
-    def path(self) -> list:
-        p = [self]
-        parent = self.parent
-        while parent is not None:
-            p.append(parent)
-            parent = parent.parent
-        return [_ for _ in reversed(p)] if len(p) > 0 else None
-
-    @property
-    def sql_list(self) -> list[Identifier]: return [Identifier(node.name) for node in self.path]
-
-    @property
-    def sql_dict(self) -> dict[str, Any]:
-        return dict(zip([str.lower(node.__class__.__name__) for node in self.path], self.sql_list))
-
-    @property
-    def db_handle(self) -> Any: return self.path[0]
-
-    @property
-    @abstractmethod
-    def children(self): ...
-
-    @classmethod
-    @abstractmethod
-    def create(cls, name, parent, *args, **kwargs): ...
-
-    @classmethod
-    @abstractmethod
-    def read(cls, name, parent, *args, **kwargs): ...
+class SQLObject(ABC):
 
     @abstractmethod
-    def update(self, *args, **kwargs): ...
-
-    @abstractmethod
-    def delete(self, *args, **kwargs): ...
-
-    @abstractmethod
-    def list(self): ...
-
-
-class Database(IDBObject):
-
-    def __init__(self, name: str):
+    def __init__(
+        self, 
+        name: str, 
+        parent: Optional[Self] = None
+        ):
+        """Subclass SQLObject such that self._tree is populated
+        """
         self._name = name
-        self._parent = None
+        ...
 
     @property
-    def name(self): return self._dbname
+    def name(self): return self._name
 
+    @property
+    def identifier(self): return Identifier(self.name)
+
+    @property
+    def tree(self): return self._tree
+
+
+"""
+SQL OBJECTS
+"""
+
+
+class Database(SQLObject):
+
+    def __init__(self, name: str, parent: Optional[Self] = None):
+        self._tree = SQLObjectTree(name)
+        
     @classmethod
     def create(cls, name: str, **kwargs):
         # generate autocommit db connection

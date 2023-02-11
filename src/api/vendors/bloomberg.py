@@ -1,4 +1,5 @@
 import os
+import config
 
 with os.add_dll_directory(config.ENV['LIB']):
     import blpapi
@@ -7,8 +8,7 @@ with os.add_dll_directory(config.ENV['LIB']):
 from typing import Any, Optional, Union
 from functools import singledispatchmethod
 
-import config
-from api.bases.data import Packet
+from data.bases.data import Packet
 
 
 #######################################################################################################################

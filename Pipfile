@@ -10,11 +10,13 @@ name = "bcmsbloomberg"
 
 [packages]
 pandas = "*"
-psycopg = "*"
 python-dotenv = "*"
 blpapi = {version = "*", index = "bcmsbloomberg"}
 numpy = "*"
 requests = "*"
+pydantic = "*"
+psycopg = {extras = ["pool"], version = "*"}
+pyqt6 = "*"
 
 [dev-packages]
 pandas = "*"
