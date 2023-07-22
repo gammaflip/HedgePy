@@ -15,8 +15,11 @@ blpapi = {version = "*", index = "bcmsbloomberg"}
 numpy = "*"
 requests = "*"
 pydantic = "*"
-psycopg = {extras = ["pool"], version = "*"}
 pyqt6 = "*"
+matplotlib = "*"
+psycopg = {extras = ["pool"], version = "*"}
+jsonschema = "*"
+pyyaml = "*"
 
 [dev-packages]
 pandas = "*"

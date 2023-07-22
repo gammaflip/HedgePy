@@ -1,126 +1,59 @@
-# SEE https://datahelpdesk.worldbank.org/knowledgebase/topics/125589-developer-information
-
+# SEE https://datahelpdesk.worldbank.org/knowledgebase/articles/1886686-advanced-data-api-queries
 
 import requests
-from typing import Union, Optional
-from data.bases.data import Packet
+from api.bases.data import Blob
 
 
-ROOT = "http://api.worldbank.org/v2/"
-DEFAULT_PARAMS = {"format": "json", "per_page": 32000, "page": 1}
+ROOT = "http://api.worldbank.org/v2"
 
 
-def get(
-    dims: tuple[tuple[str, Union[str, list[str]]]],
-    params: Optional[dict[str, str]] = None,
-) -> Packet:
-    """Given dims, which correspond to directories, and optionally params, which 
-    correspond to arguments (see Worldbank API docs for more information on directories,
-    and arguments), return an unstructured Packet object
+def get(sources: int = 2, country: str = 'USA', series: str = 'SP.POP.TOTL', time: str = 'all', page: int = 1) -> Blob:
+    url = make_url(sources, country, series, time, page)
+    response = requests.get(url)
+    pages, response = process(response)
 
-    :param dims: Tuple of tuples composed of two strings, A and B; append '{A}/{B}' to URL 
-    for each tuple; B may alternatively be a list, in which case each tuple is appended to URL  
-    as '{A}/{B_0};{B_1};[...]{B_N}' 
-    :type dims: tuple[tuple[str, Union[str, list[str]]]]
-    :param params: Optional dictionary of string key-value pairs, A and B; append '{A}={B}'
-    to URL for each pair
-    :type params: Optional[dict[str, str]], optional
-    :return: Unstructured Packet of data from Worldbank API
-    :rtype: Packet
-    """
+    if pages == 0:
+        raise Exception(response)
 
-    response, params = _get(dims, params)
-    container = _handle_response(response, dims, params, [])
-    packet = _container_to_packet(container)
-    return packet
+    while page < pages:
+        page += 1
+        temp = get(sources, country, series, time, page)
+        response.extend(temp)
 
-def format(packet: Packet):
-    ...
+    return response
 
-def _handle_response(response: list, dims: tuple, params: dict, container: list) -> list:
-    if len(response) == 2:
-        container = _handle_good_response(response, dims, params, container)
-        return container
 
+def make_url(sources: int, country: str, series: str, time: str, page: int) -> str:
+    url = ROOT
+    url += f'/sources/{sources}'
+    url += f'/country/{country}'
+    url += f'/series/{series}'
+    url += f'/time/{time}'
+    url += '/data'
+    url += '?format=json'
+    url += '&per_page=10000'
+    url += f'&page={page}'
+    return url
+
+
+def process(response: requests.Response) -> tuple[int, str | Blob]:
+    if not response.ok:
+        return 0, f'{response.status_code}: {response.text}'
     else:
-        _handle_bad_response(response)
+        return fmt(response)
 
 
-def _handle_good_response(response: list, dims: tuple, params: dict, container: list) -> list:
-    info, payload = response[0], response[1]
-    container.append(payload)
+def fmt(response: requests.Response) -> tuple[int, Blob]:
+    j = response.json()
+    pages, data = j['pages'], j['source']['data']
 
-    if len(container) < info["pages"]:
-        params["page"] += 1
-        response, params = _get(dims, params)
-        container = _handle_good_response(response, dims, params, container)
+    def row(d: dict) -> tuple:
+        temp = {}
+        while var := d['variable']:
+            _ = var.pop()
+            temp[_['concept']] = _['id'], _['value']
+        return temp['Country'][0], temp['Series'][0], temp['Time'][1], d['value']
 
-    else:
-        return container
-
-
-def _container_to_packet(container: list) -> Packet:
-    if isinstance(container[0], list):
-        temp_container = []
-        for page in container: 
-            for item in page: 
-                temp_container.append(item)
-        container = temp_container
-
-    d = dict(zip(range(len(container)), container))
-    return Packet(d)
-
-
-def _handle_bad_response(response: list):
-    if len(response) == 1:
-        message = response[0]["message"][0]
-        id_, key, value = message["id"], message["key"], message["value"]
-        raise ValueError(f"{key} (id: {id_}): {value}")
-
-    else:
-        raise ValueError(f"Failed to parse response: {response}")
-
-
-def _get(dims: tuple, params: dict) -> tuple[list, dict]:
-    params = _process_params(params)
-    url = ROOT + _dims_to_str(dims) + _params_to_str(params)
-    return requests.get(url).json(), params
-
-
-def _dims_to_str(dims) -> str:
-    res = ""
-
-    for dim in dims:
-
-        label, value = dim
-        res += "{}/".format(label)
-
-        if isinstance(value, list):
-            value = ";".join(value)
-
-        res += "{}/".format(value)
-
-    res = res.rstrip("/") + "?"  # DO BETTER PLS
-
-    return res
-
-
-def _params_to_str(params) -> str:
-    res = ""
-    temp_params = params.copy()
-    key, value = temp_params.popitem()
-    res += "{}={}".format(key, value)
-
-    if temp_params:
-        for key, value in temp_params.items():
-            res += "&{}={}".format(key, value)
-
-    return res
-
-
-def _process_params(params) -> dict:
-    _ = params.copy() if isinstance(params, dict) else dict()
-    params = DEFAULT_PARAMS.copy()
-    params.update(_)
-
-    return params
+    cols = ('country', 'series', 'time', 'value')
+    data = [row(_) for _ in data]
+    return pages, Blob(cols=cols, data=data)

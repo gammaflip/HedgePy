@@ -1,44 +1,81 @@
 import copy
 import json
-import numpy as np
-import pandas as pd
-from pandas import Timestamp, Timedelta
-from collections import UserDict, deque
+from pandas import DataFrame, Timestamp
+from collections import UserDict
+from collections.abc import Mapping
 from enum import Enum
-from dataclasses import dataclass
-from typing import Optional, Any, Type, Mapping, Callable
+from typing import Any, Optional, Iterator, Type, Sequence, Protocol, Self
+from types import NoneType
 
 
-@dataclass
-class DType:
-    db: str
-    py: Type
+"""
+DATA OBJECTS
+"""
 
 
-class DTypes(Enum):
-    STR = DType('varchar', str)
-    FLOAT = DType('float8', float)
-    INT = DType('int4', int)
-    BOOL = DType('bool', bool)
-    DATETIME = DType('timestamp', Timestamp)
-    JSON = DType('json', dict)
+class Blob:
+    def __init__(
+            self,
+            cols: Optional[Sequence] = None,
+            data: Optional[Sequence[tuple]] = None,
+            metadata: Optional[Mapping] = None,
+    ):
+        if isinstance(cols, NoneType):
+            cols = ()
+        if isinstance(data, NoneType):
+            data = [()]
+
+        self._validate(cols=cols, data=data)
+
+        self.cols = cols
+        self.data = data
+        self.metadata = metadata
+
+    @staticmethod
+    def _validate(cols: Sequence, data: Sequence):
+        for row in data:
+            assert len(row) == len(cols)
+
+    def extend(self, other: Self | Sequence[tuple]):
+        if not isinstance(other, Sequence):
+            other = other.data
+        self._validate(self.cols, other)
+        self.data += other
+
+    def df(self) -> DataFrame: return DataFrame(data=self.data, columns=self.cols)
 
 
 class Packet(UserDict):
+    """Primary vessel for data to/from user/db/vendors. Meant to bridge gap between unstructured third-party vendor
+    query results and the database's schema. Provides methods to reshape data to/from array-like and dict-like
+    subclasses. May be instantiated empty, with a dict, or from json via the from_json classmethod."""
+
+    def __init__(self, schema: Optional[Mapping]):
+        ...
+
     @classmethod
-    def from_json(cls, s: str): return cls(d=json.loads(s))  # ensure compatible with row_factory
+    def from_json(cls, s: str): return cls(d=json.loads(s))
 
     def to_json(self): return json.dumps(self.data)
 
-    def index(self, path: list) -> Any:
-        d = self.data.copy()
-        for p in path:
-            d = d[p]
-        return d
+    @property
+    def df(self) -> DataFrame:
+        flattened = self.flatten()
+        return DataFrame(
+            data=[[v] for (i, v) in flattened],
+            index=[tuple([_ for _ in i]) for (i, v) in flattened]
+        )
+
+    @property
+    def dims(self) -> tuple[int, int]:
+        flattened = self.flatten()
+        n_rows = len(flattened)
+        n_cols = max(*[len(flattened[v][0]) + 1 for v in range(n_rows)])
+        return n_rows, n_cols
 
     def flatten(self) -> list[list]:
-        d = copy.deepcopy(self.data)
-        res, path = self._flatten(d, [], [])
+        d, res, path = copy.deepcopy(self.data), [], []
+        res, path = self._flatten(d, res, path)
         return res
 
     def _flatten(self, subdict: dict, res: list, path: list) -> tuple[list[list], list]:
@@ -52,51 +89,41 @@ class Packet(UserDict):
             path.pop()
         return res, path
 
-    def walk(self, d: Optional[dict] = None):
-        d = copy.deepcopy(self.data) if not d else d
-        while d:
-            key = [_ for _ in d.keys()][0]
-            value = d.pop(key)
-            if isinstance(value, dict):
-                yield key
-                self.walk(value)
-            else:
-                yield key, value
+    def index(self, path: list) -> Any:
+        d = self.data.copy()
+        for p in path:
+            d = d[p]
+        return d
 
 
-class FormattedPacket(Packet):
+class DTypes(Enum):
+    """Manually define mappings for types to/from user/db/vendors. Use py and db methods to convert back and forth."""
+    varchar = str
+    float8 = int
+    bool = bool
+    timestamp = Timestamp
+    json = Packet
+
     @classmethod
-    def from_json(cls, s: str, fmt: Optional[Mapping]): 
-        d = json.loads(s)
-        
+    def py(cls, db: str): return cls[db].value
+
+    @classmethod
+    def db(cls, py: type): return cls(py).name
 
 
+"""
+TYPES
+"""
 
-class Queue():
-    def __init__(self, name: Optional[str] = None,
-                 handler: Optional[dict[type, Callable]] = None,
-                 initial: Optional[list] = None):
-        self.current = None
-        self._queue = deque(initial) if initial else deque()
-        self._handler = handler
 
-    def __iter__(self):
-        return self.queue.__iter__()
+class TypeMap:
+    TYPES = {'varchar': str,
+             'float8': float,
+             'int4': int,
+             'bool': bool,
+             'timestamp': Timestamp,
+             'json': dict}
 
-    def __next__(self):
-        if len(self.queue) > 0:
-            value, func = self.queue.pop(), None
-            if self.handler:
-                func = self.handler.get(value.__class__)
-            return func(value) if func else value
-        else:
-            raise StopIteration('empty queue')
-
-    @property
-    def handler(self): return self._handler
-
-    @property
-    def queue(self): return self._queue
-
-    @property
-    def list(self): return [_ for _ in self.queue]
+    def __call__(self, lookup: str | Type) -> Type | str:
+        d = self.TYPES if isinstance(lookup, str) else {v: k for k, v in self.TYPES.items()}
+        return d[lookup]
