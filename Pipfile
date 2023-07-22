@@ -20,6 +20,7 @@ matplotlib = "*"
 psycopg = {extras = ["pool"], version = "*"}
 jsonschema = "*"
 pyyaml = "*"
+trio = "*"
 
 [dev-packages]
 pandas = "*"

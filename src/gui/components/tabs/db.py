@@ -3,7 +3,7 @@ from typing import overload
 
 
 class TableWidget(QTableView):
-    def __init__(self, d: ):
+    def __init__(self, d):
         super().__init__()
 
 

@@ -1,83 +1,62 @@
-from psycopg import Connection, connect
-from psycopg.conninfo import make_conninfo
-from api.query import RowFactories
-from typing import Optional, Callable, Literal, ForwardRef
+import asyncio; asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+from contextlib import asynccontextmanager
+import psycopg
+from typing import Optional, Literal, Callable
 from types import NoneType
-from uuid import uuid4, UUID
-from collections import OrderedDict
 from dataclasses import dataclass
-from enum import Enum
+from src.api.query import query, Query, ROW_FACTORIES, ACTIONS, SQL_OBJECT_TYPES
 
-POOL: Optional[ForwardRef('Pool')] = None
-DEFAULT_ROWFACTORY = RowFactories.tuple_row
-DEFAULT_N = 6
+DEFAULT_N = 8
+DEFAULT_ROW_FACTORY = ROW_FACTORIES.tuple_row
 
 
 @dataclass
 class Profile:
     user: str = 'postgres'
-    row_factory: Callable = DEFAULT_ROWFACTORY
-    name: Optional[str] = None
+    row_factory: Optional[Callable] = DEFAULT_ROW_FACTORY
 
-    def connection(self, password: str, **kwargs) -> Connection:
-        return connect(
-            conninfo=make_conninfo(f'user={self.user} password={password}', **kwargs),
-            row_factory=self.row_factory
-        )
+    async def connection(self, password: str, **kwargs) -> psycopg.AsyncConnection:
+        conninfo = psycopg.conninfo.make_conninfo(f'user={self.user} password={password}', **kwargs)
+        return await psycopg.AsyncConnection.connect(conninfo=conninfo)
 
 
 class Pool:
-    def __init__(
-            self,
-            password: str,
-            num: Optional[int] = None,
-            base_profile: Optional[Profile] = None,
-    ):
-        self.base_profile = Profile() if isinstance(base_profile, NoneType) else base_profile
+    def __init__(self, num: Optional[int] = None, base_profile: Optional[Profile] = None):
+        self.profile = Profile() if isinstance(base_profile, NoneType) else base_profile
         self._num = num if num else DEFAULT_N
-        self._pool = OrderedDict()
-        self._common = self.make_conn(password)
+        self._pool = asyncio.LifoQueue(maxsize=self._num)
 
-        self.start(password)
-
-    def __getitem__(self, key: Optional[int | str]) -> Connection:
-        return self.get_conn(pool='managed', handle=key)
-
-    @property
-    def info(self) -> dict:
-        res = {}
-        attrs = ['status', 'transaction_status', 'dbname', 'user', 'host', 'port']
-        li1, li2 = [_ for _ in self._pool.items()], [_ for _ in range(len(self._pool))]
-        for tup, ix in zip(li1, li2):
-            name, conn = tup
-            name = ix if not isinstance(ix, NoneType) else name.hex
-            res[name] = {}
-            for attr in attrs:
-                value = getattr(conn.info, attr)
-                res[name][attr] = value.name if isinstance(value, Enum) else value
-        return res
-
-    def make_conn(self,
-                  password: str,
-                  profile: Optional[Profile] = None,
-                  **kwargs
-                  ) -> Connection:
-        # remove connection from generic pool if needed to maintain size
-        if len(self._pool) == self._num:
-            _ = self._pool.popitem(last=False)
-
-        profile = self.base_profile if isinstance(profile, NoneType) else profile
-
-        self._pool[uuid4()] = conn = profile.connection(password=password, **kwargs)
-
+    async def _get(self) -> psycopg.AsyncConnection:
+        conn = await self._pool.get()
         return conn
 
-    def start(self, password: str):
+    async def _put(self, conn: psycopg.AsyncConnection):
+        await self._pool.put(conn)
+
+    async def _new(self, password: str, **kwargs) -> psycopg.AsyncConnection:
+        conn = await self.profile.connection(password=password, **kwargs)
+        await self._put(conn)
+        return conn
+
+    async def start(self, password: str, **kwargs):
         for _ in range(self._num):
-            self.make_conn(password)
+            _ = await self._new(password, **kwargs)
+
+    @asynccontextmanager
+    async def connection(self) -> psycopg.AsyncConnection:
+        conn = await self._get()
+        try:
+            yield conn
+        finally:
+            await self._put(conn)
 
 
-def new(password: str, num: int = DEFAULT_N, base_profile: Optional[Profile] = None):
-    global POOL
-    POOL = Pool(password=password, num=num, base_profile=base_profile)
-    POOL.start(password)
+class Task:
+    def __init__(self, action: ACTIONS, sql_object_type: SQL_OBJECT_TYPES, **kwargs):
+        self._query: Query = query(action, sql_object_type, **kwargs)
+
+    async def execute(self, conn: psycopg.AsyncConnection, row_factory: Optional[Callable] = DEFAULT_ROW_FACTORY):
+        prepared = self._query.prepare()
+        async with conn.cursor(row_factory=row_factory) as cur:
+            await cur.execute(**prepared)
+            return await cur.fetchall()
