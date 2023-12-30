@@ -1,0 +1,147 @@
+from sys import getsizeof
+from numpy import array, ndarray
+from pandas import DataFrame, Timestamp
+from typing import Any, Optional, Type, Sequence
+from functools import reduce
+from dataclasses import dataclass
+from psycopg.sql import SQL, Composed
+
+"""
+DATA TYPES
+"""
+
+_DB_TYPES = {'text', 'float', 'int', 'bool', 'timestamp', 'array', 'jsonb'}
+_PY_TYPES = {str, float, int, bool, Timestamp, tuple, dict}
+_DB_TO_PY = dict(zip(_DB_TYPES, _PY_TYPES))
+_PY_TO_DB = dict(zip(_PY_TYPES, _DB_TYPES))
+
+
+def map_type(typ: type | str | object) -> str | type:
+    """Cast between Python and PostgreSQL types"""
+
+    # return Python type from string
+    if isinstance(typ, str) and typ in _DB_TYPES:
+        return _DB_TO_PY[typ]
+
+    # raise error if type is string, and value not in _DB_TYPES
+    elif isinstance(typ, str):
+        raise TypeError(f'"{typ}" is not a valid PostgreSQL type')
+
+    # return DB type from Python type
+    elif typ in _PY_TYPES:
+        return _PY_TO_DB[typ]
+
+    # return DB type from type of Python type
+    elif _ := type(typ) in _PY_TYPES:
+        return _PY_TO_DB[_]
+
+    # return DB type from typing.Generic
+    elif hasattr(typ, '__origin__') and typ.__origin__ in _PY_TYPES:
+        return _PY_TO_DB[typ.__origin__]
+
+    # raise error for uncaught type
+    else:
+        raise TypeError(f'"{typ}" ({_}) is not a valid Python type')
+
+
+"""
+DATA OBJECTS
+"""
+
+
+@dataclass
+class Field:
+    name: str
+    dtype: _PY_TYPES
+
+    @property
+    def dbtype(self) -> str:
+        return map_type(self.dtype)
+
+
+@dataclass
+class Symbol:
+    name: str
+    figi: Optional[str] = None
+
+
+class Data:
+    def __init__(
+        self,
+        fields: Sequence[Field],
+        records: Optional[Sequence[Sequence[Any]]] = None,
+    ):
+        self._fields: tuple = tuple(fields)
+        self._records: tuple | tuple[tuple] = self._ingest(fields, records)
+
+    @staticmethod
+    def _ingest(
+        fields: Sequence[Field],
+        records: Optional[Sequence[Sequence[Any]]],
+    ) -> tuple[tuple[Any, ...], ...]:
+        if records and not all(len(record) == len(fields) for record in records):
+            raise ValueError("All rows must have the same length")
+        elif records:
+            return tuple(tuple(record) for record in records)
+        else:
+            return tuple()
+
+    @property
+    def dims(self) -> tuple[int, int]:
+        return len(self._records), len(self._fields)
+
+    @property
+    def records(self) -> tuple[tuple[Any, ...], ...]:
+        return self._records
+
+    @property
+    def arr(self) -> ndarray:
+        if all(field.dtype == self._fields[0].dtype for field in self._fields):
+            return array(self._records, dtype=self._fields[0].dtype)
+        else:
+            return array(self._records)
+
+    @property
+    def df(self) -> DataFrame:
+        return DataFrame(
+            self._records, columns=[field.name for field in self._fields]
+        ).astype({field.name: field.dtype for field in self._fields if field.dtype != Timestamp})
+
+    def __sizeof__(self):
+        return reduce(
+            lambda x, y: x + y,
+            (sum(getsizeof(val) for val in tup) for tup in self._records),
+        )
+
+    def __str__(self):
+        return f"Data: ({self.dims[0]} x {self.dims[1]}) [{round(self.__sizeof__() / 1e6, 2)}MB]"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+"""
+QUERY OBJECTS
+"""
+
+
+@dataclass
+class Query:
+    body: SQL | Composed | str
+    values: Optional[tuple | tuple[tuple]] = None
+    returns: Optional[tuple[Field]] = None
+
+    def __post_init__(self):
+        if not isinstance(self.body, SQL | Composed):
+            self.body = SQL(self.body)
+
+    @property
+    def prepared(self) -> tuple: return self.body, self.values
+
+
+@dataclass
+class Result:
+    result: Data | Exception | None
+
+    def __post_init__(self):
+        self.timestamp = Timestamp.now()

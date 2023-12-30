@@ -1,7 +1,7 @@
 # SEE https://datahelpdesk.worldbank.org/knowledgebase/articles/1886686-advanced-data-api-queries
 
 import requests
-from api.bases.data import Blob
+from api.bases.Data import Blob
 
 
 ROOT = "http://api.worldbank.org/v2"

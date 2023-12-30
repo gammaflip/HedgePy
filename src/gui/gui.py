@@ -11,6 +11,6 @@ def main():
         parent_window.showMaximized()
 
     launch = launcher.Launcher(callback_on_close=auth_callback)
-    launch.auth.connect(parent_window.db_conn)
+    launch.auth_send.connect(parent_window.auth_receive)
     launch.show()
     app.exec()

@@ -14,24 +14,23 @@ python-dotenv = "*"
 blpapi = {version = "*", index = "bcmsbloomberg"}
 numpy = "*"
 requests = "*"
-pydantic = "*"
 pyqt6 = "*"
 matplotlib = "*"
 psycopg = {extras = ["pool"], version = "*"}
-jsonschema = "*"
-pyyaml = "*"
-trio = "*"
 
 [dev-packages]
 pandas = "*"
-psycopg = "*"
 python-dotenv = "*"
 blpapi = {version = "*", index = "bcmsbloomberg"}
 numpy = "*"
 requests = "*"
+pyqt6 = "*"
+matplotlib = "*"
+psycopg = {extras = ["pool"], version = "*"}
 jupyterlab = "*"
+notebook = "*"
 ipython = "*"
 ipykernel = "*"
 
 [requires]
-python_version = "3.11"
+python_version = "3.12"

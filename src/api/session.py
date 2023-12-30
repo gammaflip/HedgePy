@@ -1,14 +1,9 @@
-import asyncio; asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 from contextlib import asynccontextmanager, contextmanager
 import psycopg.conninfo
 from typing import Optional, Literal, Callable
 from types import NoneType
 from dataclasses import dataclass
-from collections import OrderedDict
 from uuid import uuid4
-from src.api.query import query, Query, ROW_FACTORIES, ACTIONS, SQL_OBJECT_TYPES
-
-DEFAULT_ROW_FACTORY = ROW_FACTORIES.tuple_row
 
 
 @dataclass
@@ -35,8 +30,10 @@ class Profile:
 
 class Connection:
     def __init__(self, profile: Profile, password: str, autocommit: bool = False):
+        self._connection = None
         self._connect(profile=profile, password=password, autocommit=autocommit)
         self._profile = profile
+        self._uuid = uuid4()
 
     def _connect(self, profile: Profile, password: str, autocommit: bool):
         conninfo = profile.conninfo(password=password)
@@ -46,6 +43,10 @@ class Connection:
         self._connection = psycopg.connect(conninfo=conninfo, autocommit=autocommit)
 
     @property
+    def uuid(self) -> str:
+        return str(self._uuid)
+
+    @property
     def handle(self) -> psycopg.Connection:
         return self._connection
 
@@ -53,7 +54,7 @@ class Connection:
         self.handle.autocommit = not self.handle.autocommit
 
     @contextmanager
-    def cursor(self, row_factory: Callable = DEFAULT_ROW_FACTORY) -> psycopg.Cursor:
+    def cursor(self, row_factory: Callable) -> psycopg.Cursor:
         with self.handle.cursor() as cur:
             cur.row_factory = row_factory
             yield cur
@@ -70,55 +71,33 @@ class Connection:
 
 
 class Session:
-    def __init__(self, profile: Profile, password: str):
-        self.host: tuple[Profile, Connection] = profile, Connection(profile=profile, password=password, autocommit=True)
-        self._di: dict[Profile: Connection] = {profile: Connection(profile=profile, password=password)}
+    def __init__(self, profile: Profile):
+        self._profiles: dict[str, Profile] = {profile.uuid: profile}
+        self._connections: dict[str, dict[str, Connection]] = {profile.uuid: {}}
+
+    def new_profile(
+            self,
+            user: str,
+            dbname: str,
+            kwargs: Optional[dict] = None
+    ) -> str:
+        profile = Profile(user=user, dbname=dbname, kwargs=kwargs)
+        self._profiles[profile.uuid] = profile
+        return profile.uuid
 
     def new_connection(
             self,
+            profile: Profile,
             password: str,
-            user: Optional[str] = None,
-            dbname: Optional[str] = None,
-            autocommit: bool = False,
-            **kwargs
-    ):
-        profile = Profile(user=user, dbname=dbname, kwargs=kwargs)
-        self._di[profile] = Connection(profile=profile, password=password, autocommit=autocommit)
-
-    def close_connection(self, uuid: str):
-        for profile, conn in self._di.items():
-            if profile.uuid == uuid:
-                conn = self._di.pop(profile)
-                conn.close()
-                break
-
-
-class AsyncPool:
-    def __init__(self, num: Optional[int] = None, base_profile: Optional[Profile] = None):
-        self.profile = Profile() if isinstance(base_profile, NoneType) else base_profile
-        self._pool = asyncio.LifoQueue(maxsize=self._num)
-
-    async def _get(self) -> psycopg.AsyncConnection:
-        conn = await self._pool.get()
+            autocommit: bool = False
+    ) -> Connection:
+        conn = Connection(profile=profile, password=password, autocommit=autocommit)
+        self._connections[profile.uuid][conn.uuid] = conn
         return conn
 
-    async def _put(self, conn: psycopg.AsyncConnection):
-        await self._pool.put(conn)
+    def close_connection(self, profile_uuid: str, conn_uuid: str):
+        conn = self._connections[profile_uuid].pop(conn_uuid)
+        conn.close()
 
-    async def _new(self, password: str, **kwargs) -> psycopg.AsyncConnection:
-        conn = await self.profile.async_connection(password=password, **kwargs)
-        await self._put(conn)
-        return conn
-
-    async def start(self, password: str, **kwargs):
-        for _ in range(self._num):
-            _ = await self._new(password, **kwargs)
-
-    @asynccontextmanager
-    async def connection(self) -> psycopg.AsyncConnection:
-        conn = await self._get()
-        try:
-            yield conn
-        finally:
-            await self._put(conn)
-
+    def get_connection(self, profile_uuid: str, conn_uuid: str) -> Connection:
+        return self._connections[profile_uuid][conn_uuid]

@@ -1,14 +1,18 @@
-from PyQt6.QtWidgets import QWidget, QTableView
-from typing import overload
+from PyQt6.QtWidgets import QWidget, QTreeWidget, QTreeWidgetItem
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
+from src.api import api
+
+class DBTreeExplorer(QTreeWidget):
+    def __init__(self):
+        ...
+
+    # add slot for database authentication
+    @pyqtSlot(api.Connection)
+    def add_connection(self, conn: api.Connection):
+        ...
 
 
-class TableWidget(QTableView):
-    def __init__(self, d):
-        super().__init__()
 
-
-class DBWidget(QWidget):
+class DBTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.table = QTableView()
-
