@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional, Self, Any
 from uuid import uuid4, UUID
 from psycopg.sql import Identifier, SQL

@@ -46,17 +46,17 @@ def execute_db_query(
         except Exception as e:
             print(f'Exception: {e}')
             conn.handle.rollback()
-            return Result(e)
+            return Result(result=e)
 
         if commit:
             conn.handle.commit()
 
         if query.returns:
             res = cur.fetchall()
-            res = Data(query.returns, res)
-            return Result(res)
+            res = Data(fields=query.returns, records=res)
+            return Result(result=res)
         else:
-            return Result(None)
+            return Result(result=None)
 
 
 def execute_db_script(script: str, conn: Connection):

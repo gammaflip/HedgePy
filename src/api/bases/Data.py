@@ -5,22 +5,23 @@ from typing import Any, Optional, Type, Sequence
 from functools import reduce
 from dataclasses import dataclass
 from psycopg.sql import SQL, Composed
+from src.api.bases.Database import Column
 
 """
 DATA TYPES
 """
 
-_DB_TYPES = {'text', 'float', 'int', 'bool', 'timestamp', 'array', 'jsonb'}
-_PY_TYPES = {str, float, int, bool, Timestamp, tuple, dict}
-_DB_TO_PY = dict(zip(_DB_TYPES, _PY_TYPES))
-_PY_TO_DB = dict(zip(_PY_TYPES, _DB_TYPES))
+DB_TYPES = {'text', 'float', 'int', 'bool', 'timestamp', 'array', 'jsonb'}
+PY_TYPES = {str, float, int, bool, Timestamp, tuple, dict}
+_DB_TO_PY = dict(zip(DB_TYPES, PY_TYPES))
+_PY_TO_DB = dict(zip(PY_TYPES, DB_TYPES))
 
 
 def map_type(typ: type | str | object) -> str | type:
     """Cast between Python and PostgreSQL types"""
 
     # return Python type from string
-    if isinstance(typ, str) and typ in _DB_TYPES:
+    if isinstance(typ, str) and typ in DB_TYPES:
         return _DB_TO_PY[typ]
 
     # raise error if type is string, and value not in _DB_TYPES
@@ -28,15 +29,15 @@ def map_type(typ: type | str | object) -> str | type:
         raise TypeError(f'"{typ}" is not a valid PostgreSQL type')
 
     # return DB type from Python type
-    elif typ in _PY_TYPES:
+    elif typ in PY_TYPES:
         return _PY_TO_DB[typ]
 
     # return DB type from type of Python type
-    elif _ := type(typ) in _PY_TYPES:
+    elif _ := type(typ) in PY_TYPES:
         return _PY_TO_DB[_]
 
     # return DB type from typing.Generic
-    elif hasattr(typ, '__origin__') and typ.__origin__ in _PY_TYPES:
+    elif hasattr(typ, '__origin__') and typ.__origin__ in PY_TYPES:
         return _PY_TO_DB[typ.__origin__]
 
     # raise error for uncaught type
@@ -52,7 +53,7 @@ DATA OBJECTS
 @dataclass
 class Field:
     name: str
-    dtype: _PY_TYPES
+    dtype: PY_TYPES
 
     @property
     def dbtype(self) -> str:
@@ -106,6 +107,7 @@ class Data:
         return DataFrame(
             self._records, columns=[field.name for field in self._fields]
         ).astype({field.name: field.dtype for field in self._fields if field.dtype != Timestamp})
+        # let pandas handle Timestamps internally
 
     def __sizeof__(self):
         return reduce(
@@ -129,7 +131,7 @@ QUERY OBJECTS
 class Query:
     body: SQL | Composed | str
     values: Optional[tuple | tuple[tuple]] = None
-    returns: Optional[tuple[Field]] = None
+    returns: Optional[tuple[Field, ...] | tuple[Column, ...] | tuple[tuple[str, Type], ...]] = None
 
     def __post_init__(self):
         if not isinstance(self.body, SQL | Composed):
