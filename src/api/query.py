@@ -5,7 +5,7 @@ from pandas import Series
 from numpy import array
 from enum import Enum
 from typing import Sequence, Optional, Any, Literal as StrLiteral
-from src.api.bases.Data import Query, Field
+from src.api.bases.Data import Query, CopyQuery, Field
 
 
 """
@@ -63,12 +63,12 @@ def insert_row(schema: str, table: str, columns: tuple[str, ...], row: tuple) ->
     return Query(body=body, values=row)
 
 
-def insert_rows(schema: str, table: str, columns: tuple[str, ...], rows: tuple[tuple]) -> tuple[Query, tuple[tuple]]:
+def insert_rows(schema: str, table: str, columns: tuple[str, ...], rows: tuple[tuple]) -> CopyQuery:
     body = SQL("""COPY {schema}.{table} ({col_names}) FROM STDIN;""")\
         .format(schema=Identifier(schema),
                 table=Identifier(table),
                 col_names=SQL(", ").join(map(Identifier, columns)))
-    return Query(body=body), rows
+    return CopyQuery(body=body, values=rows)
 
 
 def upsert_values(

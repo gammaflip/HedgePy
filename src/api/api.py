@@ -18,17 +18,11 @@ DEFAULT_ROW_FACTORY = query.tuple_row
 VENDOR_DIR = ResourceMap(vendors)
 
 
-def initialize(
-    dbname: str, dbuser: str, dbpass: str, **dbkwargs
-) -> tuple[Profile, Session, Connection]:
+def initialize(dbname: str, dbuser: str, dbpass: str, **dbkwargs) -> tuple[Profile, Session, Connection]:
     profile = Profile(user=dbuser, dbname=dbname, kwargs=dbkwargs)
     session = Session(profile=profile)
     conn = session.new_connection(profile=profile, password=dbpass)
     return profile, session, conn
-
-
-def _execute_db_copy_query(qry: CopyQuery, cur: Cursor):
-    ...
 
 
 def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = True) -> Any:
@@ -37,7 +31,8 @@ def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = Tr
             if isinstance(qry, Query):
                 cur.execute(**qry.to_cursor)
             elif isinstance(qry, CopyQuery):
-                _execute_db_copy_query(qry=qry, cur=cur)
+                with cur.copy(qry.to_cursor) as copy:
+                    copy.write(qry.values)
 
         except Exception as e:
             print(f'Exception: {e}')

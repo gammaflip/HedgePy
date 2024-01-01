@@ -134,7 +134,7 @@ class Query:
 
 class CopyQuery(Query):
     @property
-    def to_cursor(self): raise NotImplementedError()
+    def to_cursor(self) -> SQL: return self.body
 
 
 @dataclass
