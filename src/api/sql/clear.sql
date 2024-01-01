@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION drop_all ()
         FOR rec IN
         select distinct schemaname
          from pg_catalog.pg_tables
-         where schemaname not like 'pg_catalog'  
+         where schemaname not like 'pg_catalog' and schemaname not like 'information_schema'
            LOOP
              EXECUTE 'DROP SCHEMA ' || rec.schemaname || ' CASCADE'; 
            END LOOP; 

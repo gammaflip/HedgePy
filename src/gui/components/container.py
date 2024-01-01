@@ -1,10 +1,10 @@
 import os
-from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSize
+from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QTabWidget, QWidget, QMainWindow
 from PyQt6.QtGui import QIcon
-from api import session
+
+import api.bases.Database
 from config import PATH
-from pandas import Timestamp
 
 
 class TabWidget(QTabWidget):
@@ -28,8 +28,8 @@ class ParentWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.setWindowTitle('HedgePy')
 
-        self.db_session: session.Session = None
+        self.db_session: api.bases.Database.Session = None
 
-    @pyqtSlot(session.Session)
-    def auth_receive(self, db_session: session.Session):
+    @pyqtSlot(api.bases.Database.Session)
+    def auth_receive(self, db_session: api.bases.Database.Session):
         self.db_session = db_session

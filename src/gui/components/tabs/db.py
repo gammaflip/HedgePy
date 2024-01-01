@@ -1,5 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QTreeWidget, QTreeWidgetItem
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
+
+import api.bases.Database
 from src.api import api
 
 class DBTreeExplorer(QTreeWidget):
@@ -7,8 +9,8 @@ class DBTreeExplorer(QTreeWidget):
         ...
 
     # add slot for database authentication
-    @pyqtSlot(api.Connection)
-    def add_connection(self, conn: api.Connection):
+    @pyqtSlot(api.bases.Database.Connection)
+    def add_connection(self, conn: api.bases.Database.Connection):
         ...
 
 

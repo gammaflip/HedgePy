@@ -54,7 +54,7 @@ POSTGRESQL IO BINDINGS
 """
 
 
-def insert_row(schema: str, table: str, columns: tuple[str], row: tuple) -> Query:
+def insert_row(schema: str, table: str, columns: tuple[str, ...], row: tuple) -> Query:
     placeholders = SQL(", ").join([SQL("(%s)") for col_name in columns])
     body = SQL("""INSERT INTO {schema}.{table} ({col_names}) VALUES ({placeholders});""")\
         .format(schema=Identifier(schema),
@@ -64,7 +64,7 @@ def insert_row(schema: str, table: str, columns: tuple[str], row: tuple) -> Quer
     return Query(body=body, values=row)
 
 
-def insert_rows(schema: str, table: str, columns: tuple[str], rows: tuple[tuple]) -> tuple[Query, tuple[tuple]]:
+def insert_rows(schema: str, table: str, columns: tuple[str, ...], rows: tuple[tuple]) -> tuple[Query, tuple[tuple]]:
     body = SQL("""COPY {schema}.{table} ({col_names}) FROM STDIN;""")\
         .format(schema=Identifier(schema),
                 table=Identifier(table),
@@ -77,7 +77,7 @@ def upsert_values(
         table: str,
         columns: tuple[str],
         values: tuple,
-        conditions: Optional[tuple[tuple[str, StrLiteral['=', '>', '<', '>=', '<='], str], ...]] = None
+        conditions: Optional[tuple[tuple[str, StrLiteral['=', '!=', '>', '<', '>=', '<='], str], ...]] = None
 ) -> Query:
     assert len(columns) == len(values)
     columns = SQL(", ").join([SQL("{col_name}=%s").format(col_name=Identifier(col_name)) for col_name in columns])
@@ -103,7 +103,7 @@ def select_values(
     schema: str,
     table: str,
     columns: tuple[Column],
-    conditions: Optional[tuple[tuple[str, StrLiteral['=', '>', '<', '>=', '<='], str], ...]] = None
+    conditions: Optional[tuple[tuple[str, StrLiteral['=', '!=', '>', '<', '>=', '<='], str], ...]] = None
 ) -> Query:
     returns = columns
     columns = SQL(", ").join(map(Identifier, (col.name for col in columns)))
@@ -310,7 +310,26 @@ def delete_index(name: str, schema: Optional[str] = None) -> Query:
 
 
 """
-QUERY FUNCTION
+UTILITY FUNCTIONS
 """
 
 
+def snapshot():
+    db_exclude = ("postgres", "template0", "template1")
+    schema_exclude = ("public", "information_schema", "pg_catalog", "pg_toast")
+    body = SQL("""SELECT column_name, data_type, column_default, table_catalog, table_schema, table_name
+     FROM information_schema.columns
+     WHERE table_catalog NOT IN ({db_exclude}) AND table_schema NOT IN ({schema_exclude});""")\
+        .format(db_exclude=SQL(", ").join(map(Literal, db_exclude)),
+                schema_exclude=SQL(", ").join(map(Literal, schema_exclude)))
+    returns = (('column', str), ('type', str), ('default', str), ('database', str), ('schema', str), ('table', str))
+    return Query(body=body, returns=returns)
+
+
+def resolve_type(schema: str, table: str, column: str):
+    body = SQL("""SELECT data_type
+                  FROM information_schema.columns
+                  WHERE table_schema = %s
+                  AND table_name = %s
+                  AND column_name = %s;""")
+    return Query(body=body, values=(schema, table, column), returns=(('type', str),))

@@ -1,18 +1,14 @@
-import inspect
-from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtWidgets import QWidget, QLineEdit, QPushButton, QLabel, QGridLayout, QVBoxLayout, QHBoxLayout, QFormLayout
-from api import session
-from api.bases import Vendor
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QWidget, QLineEdit, QPushButton, QLabel, QGridLayout
+
+import api.bases.Database
 from psycopg import OperationalError
-from typing import Callable, Optional, _GenericAlias
-from types import NoneType
-from enum import Enum
-from copy import deepcopy
+from typing import Callable, Optional
 
 
 class Launcher(QWidget):
 
-    auth_send = pyqtSignal(session.Session)
+    auth_send = pyqtSignal(api.bases.Database.Session)
 
     def __init__(self, callback_on_close: Optional[Callable]):
         super().__init__()
@@ -38,8 +34,8 @@ class Launcher(QWidget):
         self.setGeometry(100, 100, 300, 150)
 
     def on_auth(self):
-        profile = session.Profile(user=self.user_field.text())
-        session_object = session.Session(profile=profile)
+        profile = api.bases.Database.Profile(user=self.user_field.text())
+        session_object = api.bases.Database.Session(profile=profile)
 
         try:
             conn = session_object.new_connection(profile=profile, password=self.password_field.text())
@@ -47,7 +43,7 @@ class Launcher(QWidget):
         except OperationalError:
             self.handle_bad_auth()
 
-    def handle_good_auth(self, session_object: session.Session):
+    def handle_good_auth(self, session_object: api.bases.Database.Session):
         self.auth_send.emit(session_object)
         if isinstance(self.callback_on_close, Callable):
             self.callback_on_close()

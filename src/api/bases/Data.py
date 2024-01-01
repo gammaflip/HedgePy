@@ -1,11 +1,10 @@
 from sys import getsizeof
 from numpy import array, ndarray
 from pandas import DataFrame, Timestamp
-from typing import Any, Optional, Type, Sequence
+from typing import Any, Optional, Type, Sequence, Callable
 from functools import reduce
 from dataclasses import dataclass
 from psycopg.sql import SQL, Composed
-from src.api.bases.Database import Column
 
 """
 DATA TYPES
@@ -131,7 +130,7 @@ QUERY OBJECTS
 class Query:
     body: SQL | Composed | str
     values: Optional[tuple | tuple[tuple]] = None
-    returns: Optional[tuple[Field, ...] | tuple[Column, ...] | tuple[tuple[str, Type], ...]] = None
+    returns: Optional[tuple[Field, ...] | tuple[tuple[str, Type], ...]] = None
 
     def __post_init__(self):
         if not isinstance(self.body, SQL | Composed):

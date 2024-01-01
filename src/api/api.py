@@ -1,27 +1,19 @@
-from src.api.session import Profile, Session, Connection
-from src.api.query import RowFactories, query, insert_row, insert_rows
+from src.api import query
 from src.api.bases.Data import Query, Result
-from src.api.bases.Database import Database, Schema, Table, Column, Index
+from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
 from src.api.bases.Vendor import (
-    Vendor,
-    Endpoint,
-    Getter,
-    Formatter,
-    Authorization,
     ResourceMap,
 )
 from src.api import vendors
-from src.api.bases.Data import Data, Field, Symbol
+from src.api.bases.Data import Data
 from src import config
-from psycopg.errors import UniqueViolation, ProgrammingError
+from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
 from typing import Optional, Callable, Any
-from pandas import Timestamp
-from json import dumps
 from pathlib import Path
 
 
-DEFAULT_ROW_FACTORY = RowFactories.tuple_row
+DEFAULT_ROW_FACTORY = query.RowFactories.tuple_row
 VENDOR_DIR = ResourceMap(vendors)
 
 
@@ -35,14 +27,13 @@ def initialize(
 
 
 def execute_db_query(
-    query: Query, conn: Connection, row_factory: Optional[Callable] = None, commit: bool = True
+    query: Query, conn: Connection, commit: bool = True
 ) -> Any:
-    if not row_factory:
-        row_factory = DEFAULT_ROW_FACTORY
+    row_factory = query.row_factory if query.row_factory else DEFAULT_ROW_FACTORY
 
     with conn.handle.cursor(row_factory=row_factory) as cur:
         try:
-            cur.execute(*query.prepared)
+            cur.execute(**query.to_cursor)
         except Exception as e:
             print(f'Exception: {e}')
             conn.handle.rollback()
@@ -73,7 +64,7 @@ def execute_vendor_query(vendor: str, endpoint: str, *args, **kwargs):
 
 def register_endpoints(conn: Connection, rm: ResourceMap):
     for vendor in rm:
-        q = insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
+        q = query.insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
 
         try:
             execute_db_query(q, conn)
@@ -81,7 +72,7 @@ def register_endpoints(conn: Connection, rm: ResourceMap):
             pass
 
         for endpoint in vendor:
-            q = insert_row(
+            q = query.insert_row(
                 schema="meta",
                 table="endpoints",
                 columns=("endpoint", "vendor", "signature"),
