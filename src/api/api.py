@@ -33,7 +33,6 @@ def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = Tr
             elif isinstance(qry, CopyQuery):
                 with cur.copy(qry.to_cursor) as copy:
                     copy.write(qry.values)
-
         except Exception as e:
             print(f'Exception: {e}')
             conn.handle.rollback()
@@ -52,9 +51,8 @@ def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = Tr
 
 def execute_db_script(script: str, conn: Connection):
     filepath = Path(config.PROJECT_ENV['ROOT']) / 'src' / 'api' / 'sql' / f'{script}.sql'
-    assert filepath.exists(), f'File does not exist: {filepath}'
-    q = Query(open(filepath).read())
-    res = execute_db_query(q, conn)
+    qry = Query(body=open(filepath).read())
+    res = execute_db_query(qry=qry, conn=conn)
     return res
 
 
