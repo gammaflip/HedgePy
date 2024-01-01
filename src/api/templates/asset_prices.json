@@ -1,0 +1,17 @@
+{
+    "start": "1999-12-31",
+    "resolution": "P15M",
+    "template": [
+        {
+            "vendor": "td",
+            "endpoint": "price_history",
+            "symbols": ["AAPL", "MSFT"],
+            "fields": ["datetime", "open", "high", "low", "close", "volume"]
+        },
+        {
+            "vendor": "td",
+            "endpoint": "quote",
+            "symbols": ["AAPL", "MSFT"]
+        }
+    ]
+}

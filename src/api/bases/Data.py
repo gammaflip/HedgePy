@@ -10,11 +10,11 @@ from psycopg.sql import SQL, Composed
 DATA TYPES
 """
 
+PY_TYPES = {str, float, int, bool, Timestamp, tuple, dict}
 DB_TYPES = {'text', 'float', 'int', 'bool', 'timestamp', 'array', 'json'}
 _DB_TYPE_ALIASES = {'character varying': 'text', 'integer': 'int', 'boolean': 'bool'}
-PY_TYPES = {str, float, int, bool, Timestamp, tuple, dict}
-_DB_TO_PY = dict(zip(DB_TYPES, PY_TYPES))
 _PY_TO_DB = dict(zip(PY_TYPES, DB_TYPES))
+_DB_TO_PY = dict(zip(DB_TYPES, PY_TYPES))
 
 
 def map_type(typ: type | str | object) -> str | type:
@@ -66,7 +66,7 @@ class Symbol:
 
 
 class Data:
-    def __init__(self, fields: Sequence[Field, ...], records: Sequence[Sequence, ...]):
+    def __init__(self, fields: Sequence[Field], records: Sequence[Sequence]):
         self._fields: tuple[Field, ...] = tuple(fields)
         self._records: tuple[tuple[Any, ...], ...] = self._ingest(fields, records)
         self._size: float = reduce(lambda x, y: x + y, (sum(getsizeof(val) for val in tup) for tup in records),)

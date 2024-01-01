@@ -48,12 +48,8 @@ PostgreSQL OBJECTS
 class Database(SQLObject):
     SHORT_NAME = 'Db'
 
-    def __init__(self, name: str, tablespace: Optional[str] = None):
+    def __init__(self, name: str):
         super().__init__(name=name, parent=None)
-        self._tablespace = tablespace
-
-    @property
-    def tablespace(self): return self._tablespace
 
 
 class Schema(SQLObject):

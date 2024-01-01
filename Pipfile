@@ -14,9 +14,9 @@ python-dotenv = "*"
 blpapi = {version = "*", index = "bcmsbloomberg"}
 numpy = "*"
 requests = "*"
-pyqt6 = "*"
 matplotlib = "*"
 psycopg = {extras = ["pool"], version = "*"}
+jsonschema = {extras = ["format"], version = "*"}
 
 [dev-packages]
 pandas = "*"
