@@ -1,5 +1,5 @@
 from src.api import query
-from src.api.bases.Data import Query, Result
+from src.api.bases.Data import Query, CopyQuery, Result
 from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
 from src.api.bases.Vendor import (
     ResourceMap,
@@ -7,13 +7,14 @@ from src.api.bases.Vendor import (
 from src.api import vendors
 from src.api.bases.Data import Data
 from src import config
+from psycopg import Cursor
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
 from typing import Optional, Callable, Any
 from pathlib import Path
 
 
-DEFAULT_ROW_FACTORY = query.RowFactories.tuple_row
+DEFAULT_ROW_FACTORY = query.tuple_row
 VENDOR_DIR = ResourceMap(vendors)
 
 
@@ -26,14 +27,18 @@ def initialize(
     return profile, session, conn
 
 
-def execute_db_query(
-    query: Query, conn: Connection, commit: bool = True
-) -> Any:
-    row_factory = query.row_factory if query.row_factory else DEFAULT_ROW_FACTORY
+def _execute_db_copy_query(qry: CopyQuery, cur: Cursor):
+    ...
 
-    with conn.handle.cursor(row_factory=row_factory) as cur:
+
+def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = True) -> Any:
+    with conn.handle.cursor(row_factory=DEFAULT_ROW_FACTORY) as cur:
         try:
-            cur.execute(**query.to_cursor)
+            if isinstance(qry, Query):
+                cur.execute(**qry.to_cursor)
+            elif isinstance(qry, CopyQuery):
+                _execute_db_copy_query(qry=qry, cur=cur)
+
         except Exception as e:
             print(f'Exception: {e}')
             conn.handle.rollback()
@@ -42,9 +47,9 @@ def execute_db_query(
         if commit:
             conn.handle.commit()
 
-        if query.returns:
+        if qry.returns:
             res = cur.fetchall()
-            res = Data(fields=query.returns, records=res)
+            res = Data(fields=qry.returns, records=res)
             return Result(result=res)
         else:
             return Result(result=None)
@@ -83,61 +88,3 @@ def register_endpoints(conn: Connection, rm: ResourceMap):
                 execute_db_query(q, conn)
             except UniqueViolation:
                 pass
-
-
-def db_snapshot(conn: Connection) -> dict:  # TODO: REFACTOR WITH UPDATED execute_db_query FUNCTION
-    db_exclude = ("postgres", "template0", "template1")
-    schema_exclude = ("public", "information_schema", "pg_catalog", "pg_toast")
-    rf = RowFactories.value_row
-
-    db_query = query("read", Database)
-    db_tup = tuple(
-        [
-            Database(db)
-            for db in execute_db_query(db_query, conn, rf)
-            if db not in db_exclude
-        ]
-    )
-    res = dict.fromkeys(db_tup)
-
-    for db in db_tup:
-        schema_query = query("read", Schema, database=db.name)
-        schema_tup = tuple(
-            [
-                Schema(db, schema)
-                for schema in execute_db_query(schema_query, conn, rf)
-                if schema not in schema_exclude
-            ]
-        )
-        res[db] = dict.fromkeys(schema_tup)
-
-        for schema in schema_tup:
-            table_query = query("read", Table, database=db.name, schema=schema.name)
-            table_tup = tuple(
-                [
-                    Table(schema, table)
-                    for table in execute_db_query(table_query, conn, rf)
-                ]
-            )
-            res[db][schema] = dict.fromkeys(table_tup)
-
-            for table in table_tup:
-                column_query = query(
-                    "read",
-                    Column,
-                    database=db.name,
-                    schema=schema.name,
-                    table=table.name,
-                )
-                column_tup = tuple(
-                    [
-                        Column(table, *column)
-                        for column in execute_db_query(column_query, conn)
-                    ]
-                )
-                res[db][schema][table] = column_tup
-
-    return res
-
-
-

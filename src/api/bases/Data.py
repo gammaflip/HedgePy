@@ -66,25 +66,17 @@ class Symbol:
 
 
 class Data:
-    def __init__(
-        self,
-        fields: Sequence[Field],
-        records: Optional[Sequence[Sequence[Any]]] = None,
-    ):
-        self._fields: tuple = tuple(fields)
-        self._records: tuple | tuple[tuple] = self._ingest(fields, records)
+    def __init__(self, fields: Sequence[Field, ...], records: Sequence[Sequence[Any, ...], ...]):
+        self._fields: tuple[Field, ...] = tuple(fields)
+        self._records: tuple[tuple[Any, ...], ...] = self._ingest(fields, records)
+        self._size: float = reduce(lambda x, y: x + y, (sum(getsizeof(val) for val in tup) for tup in records),)
 
     @staticmethod
-    def _ingest(
-        fields: Sequence[Field],
-        records: Optional[Sequence[Sequence[Any]]],
-    ) -> tuple[tuple[Any, ...], ...]:
-        if records and not all(len(record) == len(fields) for record in records):
+    def _ingest(fields, records) -> tuple[tuple[Any, ...], ...]:
+        if not all(len(record) == len(fields) for record in records):
             raise ValueError("All rows must have the same length")
-        elif records:
-            return tuple(tuple(record) for record in records)
         else:
-            return tuple()
+            return tuple(tuple(record) for record in records)
 
     @property
     def dims(self) -> tuple[int, int]:
@@ -95,6 +87,10 @@ class Data:
         return self._records
 
     @property
+    def fields(self) -> tuple[Field, ...]:
+        return self._fields
+
+    @property
     def arr(self) -> ndarray:
         if all(field.dtype == self._fields[0].dtype for field in self._fields):
             return array(self._records, dtype=self._fields[0].dtype)
@@ -103,19 +99,15 @@ class Data:
 
     @property
     def df(self) -> DataFrame:
-        return DataFrame(
-            self._records, columns=[field.name for field in self._fields]
-        ).astype({field.name: field.dtype for field in self._fields if field.dtype != Timestamp})
+        return DataFrame(self._records, columns=[field.name for field in self._fields])\
+            .astype({field.name: field.dtype for field in self._fields if field.dtype != Timestamp})
         # let pandas handle Timestamps internally
 
     def __sizeof__(self):
-        return reduce(
-            lambda x, y: x + y,
-            (sum(getsizeof(val) for val in tup) for tup in self._records),
-        )
+        return self._size
 
     def __str__(self):
-        return f"Data: ({self.dims[0]} x {self.dims[1]}) [{round(self.__sizeof__() / 1e6, 2)}MB]"
+        return f"Data: ({self.dims[0]} x {self.dims[1]}) [{round(self._size / 1e6, 2)}MB]"
 
     def __repr__(self):
         return self.__str__()
@@ -138,6 +130,11 @@ class Query:
 
     @property
     def to_cursor(self) -> dict: return {'query': self.body, 'params': self.values}
+
+
+class CopyQuery(Query):
+    @property
+    def to_cursor(self): raise NotImplementedError()
 
 
 @dataclass

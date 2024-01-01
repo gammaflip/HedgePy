@@ -5,8 +5,7 @@ from pandas import Series
 from numpy import array
 from enum import Enum
 from typing import Sequence, Optional, Any, Literal as StrLiteral
-from src.api.bases.Data import Query
-from src.api.bases.Database import Database, Schema, Table, Column, Index
+from src.api.bases.Data import Query, Field
 
 
 """
@@ -102,7 +101,7 @@ def upsert_values(
 def select_values(
     schema: str,
     table: str,
-    columns: tuple[Column],
+    columns: tuple[Field],
     conditions: Optional[tuple[tuple[str, StrLiteral['=', '!=', '>', '<', '>=', '<='], str], ...]] = None
 ) -> Query:
     returns = columns
