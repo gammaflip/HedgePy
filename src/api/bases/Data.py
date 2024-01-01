@@ -138,7 +138,7 @@ class Query:
             self.body = SQL(self.body)
 
     @property
-    def prepared(self) -> tuple: return self.body, self.values
+    def to_cursor(self) -> dict: return {'query': self.body, 'params': self.values}
 
 
 @dataclass

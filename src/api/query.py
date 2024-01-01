@@ -54,30 +54,8 @@ POSTGRESQL IO BINDINGS
 """
 
 
-def insert_values(
-        schema: str,
-        table: str,
-        columns: tuple[str],
-        values: tuple,
-        conditions: Optional[tuple[tuple[str, StrLiteral['=', '>', '<', '>=', '<='], str], ...]] = None
-) -> Query:
-    assert len(columns) == len(values)
-    columns = SQL(', ').join([f'{Identifier(col_name)}=%s' for col_name in columns])
-
-    if conditions:
-        conditions = SQL(' AND ').join([f'{Identifier(name)}{op}{Literal(value)}' for name, op, value in conditions])
-        body = SQL("""UPDATE {schema}.{table} SET {columns} WHERE {conditions};""").\
-            format(schema=schema, table=table, columns=columns, conditions=conditions)
-
-    else:
-        body = SQL("""UPDATE {schema}.{table} SET {columns};""").\
-            format(schema=schema, table=table, columns=columns)
-
-    return Query(body=body, values=values)
-
-
 def insert_row(schema: str, table: str, columns: tuple[str], row: tuple) -> Query:
-    placeholders = SQL(", ").join([SQL("(%s)") for col in columns])
+    placeholders = SQL(", ").join([SQL("(%s)") for col_name in columns])
     body = SQL("""INSERT INTO {schema}.{table} ({col_names}) VALUES ({placeholders});""")\
         .format(schema=Identifier(schema),
                 table=Identifier(table),
@@ -90,8 +68,61 @@ def insert_rows(schema: str, table: str, columns: tuple[str], rows: tuple[tuple]
     body = SQL("""COPY {schema}.{table} ({col_names}) FROM STDIN;""")\
         .format(schema=Identifier(schema),
                 table=Identifier(table),
-                col_names=SQL(", ").join([Identifier(_) for _ in columns]),)
+                col_names=SQL(", ").join(map(Identifier, columns)))
     return Query(body=body), rows
+
+
+def upsert_values(
+        schema: str,
+        table: str,
+        columns: tuple[str],
+        values: tuple,
+        conditions: Optional[tuple[tuple[str, StrLiteral['=', '>', '<', '>=', '<='], str], ...]] = None
+) -> Query:
+    assert len(columns) == len(values)
+    columns = SQL(", ").join([SQL("{col_name}=%s").format(col_name=Identifier(col_name)) for col_name in columns])
+
+    if conditions:
+        conditions = SQL(" AND ").join(
+            [SQL("{name}{op}{val}").format(
+                name=Identifier(name),
+                op=SQL(op),
+                val=Literal(val))
+                for name, op, val in conditions])
+        body = SQL("""UPDATE {schema}.{table} SET {columns} WHERE {conditions};""").\
+            format(schema=schema, table=table, columns=columns, conditions=conditions)
+
+    else:
+        body = SQL("""UPDATE {schema}.{table} SET {columns};""").\
+            format(schema=schema, table=table, columns=columns)
+
+    return Query(body=body, values=values)
+
+
+def select_values(
+    schema: str,
+    table: str,
+    columns: tuple[Column],
+    conditions: Optional[tuple[tuple[str, StrLiteral['=', '>', '<', '>=', '<='], str], ...]] = None
+) -> Query:
+    returns = columns
+    columns = SQL(", ").join(map(Identifier, (col.name for col in columns)))
+
+    if conditions:
+        conditions = SQL(" AND ").join(
+            [SQL("{name}{op}{val}").format(
+                name=Identifier(name),
+                op=SQL(op),
+                val=Literal(val))
+                for name, op, val in conditions])
+        body = SQL("""SELECT ({columns}) FROM {schema}.{table} WHERE {conditions};""").\
+            format(schema=schema, table=table, columns=columns, conditions=conditions)
+
+    else:
+        body = SQL("""SELECT ({columns}) FROM {schema}.{table};""").\
+            format(schema=schema, table=table, columns=columns)
+
+    return Query(body=body, returns=returns)
 
 
 """
@@ -283,15 +314,3 @@ QUERY FUNCTION
 """
 
 
-def query(
-    action: StrLiteral["create", "read", "update", "delete"],
-    obj: Database | Schema | Table | Column | Index,
-    *args,
-    **kwargs
-) -> Any:
-    try:
-        f = globals()["_".join([action, obj.__name__.lower()])]
-    except KeyError:
-        raise NotImplementedError
-
-    return f(*args, **kwargs)
