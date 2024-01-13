@@ -47,9 +47,6 @@ class Template(UserDict):
     def __getitem__(self, key: int) -> dict:
         return self.data["template"][key]
 
-    def __setitem__(self, key, value):
-        raise NotImplementedError()
-
     def __len__(self) -> int:
         return len(self.data["template"])
 

@@ -1,16 +1,11 @@
-from src.api import query
-from src.api.bases.Data import Query, CopyQuery, Result
-from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
-from src.api.bases.Vendor import (
-    ResourceMap,
-)
-from src.api import vendors
-from src.api.bases.Data import Data
 from src import config
-from psycopg import Cursor
+from src.api import query
+from src.api import vendors
+from src.api.bases.Data import Data, Query, CopyQuery, Result
+from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
+from src.api.bases.Vendor import ResourceMap
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
-from typing import Optional, Callable, Any
 from pathlib import Path
 
 
@@ -25,8 +20,13 @@ def initialize(dbname: str, dbuser: str, dbpass: str, **dbkwargs) -> tuple[Profi
     return profile, session, conn
 
 
-def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = True) -> Any:
-    with conn.handle.cursor(row_factory=DEFAULT_ROW_FACTORY) as cur:
+def make_db_query(qry: str, **kwargs) -> Query | CopyQuery:
+    f = getattr(query, qry)
+    return f(**kwargs)
+
+
+def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = True) -> Result:
+    with conn.cursor(row_factory=DEFAULT_ROW_FACTORY) as cur:
         try:
             if isinstance(qry, Query):
                 cur.execute(**qry.to_cursor)
@@ -49,15 +49,17 @@ def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = Tr
             return Result(result=None)
 
 
-def execute_db_script(script: str, conn: Connection):
+def execute_db_script(script: str, conn: Connection) -> Result:
     filepath = Path(config.PROJECT_ENV['ROOT']) / 'src' / 'api' / 'sql' / f'{script}.sql'
     qry = Query(body=open(filepath).read())
     res = execute_db_query(qry=qry, conn=conn)
     return res
 
 
-def execute_vendor_query(vendor: str, endpoint: str, *args, **kwargs):
-    return VENDOR_DIR[vendor][endpoint](*args, **kwargs)
+def execute_vendor_query(vendor: str, endpoint: str, **kwargs) -> Result:
+    endpoint = VENDOR_DIR[vendor][endpoint]
+    res = endpoint(**kwargs)
+    return Result(result=res)
 
 
 def register_endpoints(conn: Connection, rm: ResourceMap):

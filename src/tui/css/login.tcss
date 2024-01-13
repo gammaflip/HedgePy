@@ -1,0 +1,27 @@
+LoginWindow {
+    align: center middle;
+}
+
+LoginPrompt {
+    layout: grid;
+    width: 75%;
+    height: 50%;
+    grid-size: 3 4;
+    grid-columns: 1fr 5fr 1fr;
+    grid-rows: 1fr 2fr 2fr 2fr;
+    border: white;
+    background: $background 100%;
+}
+
+#LoginLabel {
+    column-span: 3;
+    text-style: bold underline;
+}
+
+#DBUserInput {
+    column-span: 2;
+}
+
+#DBPasswordInput {
+    column-span: 2;
+}

@@ -1,0 +1,4 @@
+DatabaseTree {
+    dock: left;
+    width: 30%;
+}

@@ -24,6 +24,7 @@ def map_type(typ: type | str | object) -> str | type:
     if isinstance(typ, str) and typ in DB_TYPES:
         return _DB_TO_PY[typ]
 
+    # return Python type from alias of string
     elif isinstance(typ, str) and typ in _DB_TYPE_ALIASES.keys():
         return _DB_TO_PY[_DB_TYPE_ALIASES[typ]]
 
@@ -36,8 +37,9 @@ def map_type(typ: type | str | object) -> str | type:
         return _PY_TO_DB[_]
 
     # return DB type from typing.Generic
-    elif hasattr(typ, '__origin__') and typ.__origin__ in PY_TYPES:
-        return _PY_TO_DB[typ.__origin__]
+    elif hasattr(typ, '__origin__'):
+        if typ.__origin__ in PY_TYPES:
+            return _PY_TO_DB[typ.__origin__]
 
     # raise error for uncaught type
     else:
@@ -127,6 +129,15 @@ class Query:
     def __post_init__(self):
         if not isinstance(self.body, SQL | Composed):
             self.body = SQL(self.body)
+        if not all((isinstance(ret, Field) for ret in self.returns)):
+            returns = []
+            for ret in self.returns:
+                if not isinstance(ret, Field):
+                    name, typ = ret
+                    returns.append(Field(name=name, dtype=map_type(typ)))
+                else:
+                    returns.append(ret)
+            self.returns = tuple(returns)
 
     @property
     def to_cursor(self) -> dict: return {'query': self.body, 'params': self.values}

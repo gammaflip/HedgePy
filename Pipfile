@@ -17,6 +17,7 @@ requests = "*"
 matplotlib = "*"
 psycopg = {extras = ["pool"], version = "*"}
 jsonschema = {extras = ["format"], version = "*"}
+textual = "*"
 
 [dev-packages]
 pandas = "*"
@@ -31,6 +32,7 @@ jupyterlab = "*"
 notebook = "*"
 ipython = "*"
 ipykernel = "*"
+textual-dev = "*"
 
 [requires]
 python_version = "3.12"

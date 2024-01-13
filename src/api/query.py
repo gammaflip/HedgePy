@@ -316,9 +316,13 @@ UTILITY FUNCTIONS
 def snapshot():
     db_exclude = ("postgres", "template0", "template1")
     schema_exclude = ("public", "information_schema", "pg_catalog", "pg_toast")
-    body = SQL("""SELECT column_name, data_type, column_default, table_catalog, table_schema, table_name
-     FROM information_schema.columns
-     WHERE table_catalog NOT IN ({db_exclude}) AND table_schema NOT IN ({schema_exclude});""")\
+    body = SQL(
+        """
+        SELECT column_name, data_type, column_default, table_catalog, table_schema, table_name
+        FROM information_schema.columns
+        WHERE table_catalog NOT IN ({db_exclude}) AND table_schema NOT IN ({schema_exclude});
+        """
+    )\
         .format(db_exclude=SQL(", ").join(map(Literal, db_exclude)),
                 schema_exclude=SQL(", ").join(map(Literal, schema_exclude)))
     returns = (('column', str), ('type', str), ('default', str), ('database', str), ('schema', str), ('table', str))

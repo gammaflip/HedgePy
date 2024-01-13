@@ -1,8 +1,7 @@
 import inspect
 from typing import Callable, Optional
-from types import NoneType
-from types import ModuleType
-from pandas import Timestamp
+from types import NoneType, ModuleType
+from pandas import Timestamp, Timedelta
 from dataclasses import dataclass
 from requests import Response
 from src.api.bases.Data import Data
@@ -22,19 +21,26 @@ class _MetaFunction:
 class Authorization(_MetaFunction):
     def __post_init__(self):
         self._token = None
-        self._last_auth = None
+        self._timestamp = None
 
     @property
     def token(self) -> str:
         return self._token
 
+    @token.setter
+    def token(self, token: str):
+        self._token = token
+
     @property
-    def last_auth(self) -> Timestamp:
-        return self._last_auth
+    def timestamp(self) -> Timestamp:
+        return self._timestamp
+
+    @timestamp.setter
+    def timestamp(self, timestamp: Timestamp):
+        self._timestamp = timestamp
 
     def refresh(self):
-        self._token = self()
-        self._last_auth = Timestamp.now()
+        self.token, self.timestamp = self(), Timestamp.now()
 
 
 class Formatter(_MetaFunction):
@@ -43,12 +49,38 @@ class Formatter(_MetaFunction):
 
 
 class Getter(_MetaFunction):
+    PARAM_MAP = {
+        'symbol': Optional[str | list[str]],
+        'field': Optional[str | list[str]],
+        'start': Optional[Timestamp | list[Timestamp]],
+        'end': Optional[Timestamp],
+        'resolution': Optional[Timedelta]
+    }
+
+    def __post_init__(self):
+        self._signature = inspect.signature(self.func)
+        self._params = {}
+        self._kwargs = {}
+
+        for param_name, param in self._signature.parameters.items():
+            default = param.default
+            if param_name in self.PARAM_MAP:
+                self._params[param_name] = default
+            else:
+                self._kwargs[param_name] = default
+
     @property
     def signature(self) -> inspect.Signature:
-        return inspect.signature(self.func)
+        return self._signature
 
-    def bind(self, *args, **kwargs):
-        return self.signature.bind(*args, **kwargs)
+    def bind(self, **kwargs) -> dict:
+        kwargs_out = self._params.copy() | self._kwargs.copy()
+        for kwarg_name, kwarg_value in kwargs.items():
+            if kwarg_name in kwargs_out:
+                kwargs_out[kwarg_name] = kwarg_value
+            else:
+                raise ValueError(f"Unrecognized parameter: {kwarg_name}")
+        return kwargs_out
 
 
 @dataclass
@@ -57,8 +89,9 @@ class Endpoint:
     getter: Getter
     formatter: Optional[Formatter]
 
-    def __call__(self, *args, **kwargs):
-        res, params = self.getter(*args, **kwargs)
+    def __call__(self, **kwargs):
+        bound_args = self.getter.bind(**kwargs)
+        res, params = self.getter(**bound_args)
         if self.formatter:
             return self.formatter.format(res, params)
         else:
@@ -70,11 +103,15 @@ class Endpoint:
 
     @property
     def map(self):
-        return {k: {
-            'default': not (isinstance(v.default, NoneType) or isinstance(v.default, inspect._empty)),
-            'kind': v.kind.value,
-            'annotation': str(v.annotation)
-        } for k, v in self.signature.parameters.items()}
+        return {
+            k:
+                {
+                    'default': not (isinstance(v.default, NoneType) or isinstance(v.default, inspect._empty)),
+                    'kind': v.kind.value,
+                    'annotation': str(v.annotation)
+                }
+            for k, v in self.signature.parameters.items()
+        }
 
     def __getitem__(self, item):
         return self.signature.parameters[item]

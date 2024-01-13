@@ -1,0 +1,39 @@
+[project]
+name = "hedgepy"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "gammaflip", email = "123275140+gammaflip@users.noreply.github.com" }
+]
+dependencies = [
+    "pandas>=2.0.3",
+    "numpy>=1.24.4",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "jsonschema>=4.20.0",
+    "psycopg>=3.1.17",
+    "textual>=0.47.1",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[project.scripts]
+hello = "hedgepy:hello"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = ["textual-dev"]
+
+[tool.rye.scripts]
+client = {call = 'src.tui.tui', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}
+client-dev = {cmd = 'textual run --dev ./src/tui/tui.py', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hedgepy"]
