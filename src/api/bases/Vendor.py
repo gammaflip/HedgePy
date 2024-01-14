@@ -48,6 +48,7 @@ class Formatter(_MetaFunction):
         return self(res, params)
 
 
+@dataclass
 class Getter(_MetaFunction):
     PARAM_MAP = {
         'symbol': Optional[str | list[str]],

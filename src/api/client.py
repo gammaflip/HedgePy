@@ -1,7 +1,8 @@
 from src import config
 from src.api import query
 from src.api import vendors
-from src.api.bases.Data import Data, Query, CopyQuery, Result
+from src.api.bases.Data import Data, Result
+from src.api.bases.Database import Query, CopyQuery
 from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
 from src.api.bases.Vendor import ResourceMap
 from psycopg.errors import UniqueViolation
@@ -62,8 +63,8 @@ def execute_vendor_query(vendor: str, endpoint: str, **kwargs) -> Result:
     return Result(result=res)
 
 
-def register_endpoints(conn: Connection, rm: ResourceMap):
-    for vendor in rm:
+def register_endpoints(conn: Connection):
+    for vendor in VENDOR_DIR:
         q = query.insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
 
         try:

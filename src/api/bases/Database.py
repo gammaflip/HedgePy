@@ -2,10 +2,11 @@ from abc import ABC
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import NoneType
-from typing import Optional, Self, Any, Callable
+from typing import Optional, Self, Any, Callable, Type
 from uuid import uuid4, UUID
 import psycopg.conninfo
-from psycopg.sql import Identifier, SQL
+from psycopg.sql import Identifier, SQL, Composed
+from src.api.bases.Data import Field, map_type
 
 
 """
@@ -234,3 +235,31 @@ class Session:
 
     def get_connection(self, profile_uuid: str, conn_uuid: str) -> Connection:
         return self._connections[profile_uuid][conn_uuid]
+
+
+@dataclass
+class Query:
+    body: SQL | Composed | str
+    values: Optional[tuple | tuple[tuple]] = None
+    returns: Optional[tuple[Field, ...] | tuple[tuple[str, Type], ...]] = None
+
+    def __post_init__(self):
+        if not isinstance(self.body, SQL | Composed):
+            self.body = SQL(self.body)
+        if self.returns and not all((isinstance(ret, Field) for ret in self.returns)):
+            returns = []
+            for ret in self.returns:
+                if not isinstance(ret, Field):
+                    name, typ = ret
+                    returns.append(Field(name=name, dtype=map_type(typ)))
+                else:
+                    returns.append(ret)
+            self.returns = tuple(returns)
+
+    @property
+    def to_cursor(self) -> dict: return {'query': self.body, 'params': self.values}
+
+
+class CopyQuery(Query):
+    @property
+    def to_cursor(self) -> SQL: return self.body

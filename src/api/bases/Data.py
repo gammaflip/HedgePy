@@ -1,10 +1,9 @@
 from sys import getsizeof
 from numpy import array, ndarray
 from pandas import DataFrame, Timestamp
-from typing import Any, Optional, Type, Sequence, Callable
+from typing import Any, Optional, Sequence
 from functools import reduce
 from dataclasses import dataclass
-from psycopg.sql import SQL, Composed
 
 """
 DATA TYPES
@@ -113,39 +112,6 @@ class Data:
 
     def __repr__(self):
         return self.__str__()
-
-
-"""
-QUERY OBJECTS
-"""
-
-
-@dataclass
-class Query:
-    body: SQL | Composed | str
-    values: Optional[tuple | tuple[tuple]] = None
-    returns: Optional[tuple[Field, ...] | tuple[tuple[str, Type], ...]] = None
-
-    def __post_init__(self):
-        if not isinstance(self.body, SQL | Composed):
-            self.body = SQL(self.body)
-        if not all((isinstance(ret, Field) for ret in self.returns)):
-            returns = []
-            for ret in self.returns:
-                if not isinstance(ret, Field):
-                    name, typ = ret
-                    returns.append(Field(name=name, dtype=map_type(typ)))
-                else:
-                    returns.append(ret)
-            self.returns = tuple(returns)
-
-    @property
-    def to_cursor(self) -> dict: return {'query': self.body, 'params': self.values}
-
-
-class CopyQuery(Query):
-    @property
-    def to_cursor(self) -> SQL: return self.body
 
 
 @dataclass

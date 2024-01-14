@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QWidget, QTreeWidget, QTreeWidgetItem
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 
 import api.bases.Database
-from src.api import api
+from src.api import client
 
 class DBTreeExplorer(QTreeWidget):
     def __init__(self):

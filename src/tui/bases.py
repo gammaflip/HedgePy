@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src import config
-from src.api import api
+from src.api import client
 from src.api.bases.Database import Profile, Session, Connection
 
 from src.tui import content

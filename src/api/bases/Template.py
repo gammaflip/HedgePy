@@ -18,16 +18,17 @@ except jsonschema.exceptions.SchemaError as e:
                      f"{e.message}")
 
 
-def load(template: str) -> UserDict:
-    with open(TEMPLATE_DIR / f"{template}.json") as fp:
+def load(template: str, meta: bool = False) -> dict:
+    template_dir = TEMPLATE_DIR / 'meta' if meta else TEMPLATE_DIR
+    with open(template_dir / f"{template}.json") as fp:
         return json.load(fp)
 
 
-def validate(template: UserDict) -> bool:
+def validate(template: dict | UserDict, template_schema: dict | UserDict = TEMPLATE_SCHEMA) -> bool:
     try:
         jsonschema.validate(
             instance=template,
-            schema=TEMPLATE_SCHEMA,
+            schema=template_schema,
             cls=_VALIDATOR,
             format_checker=_VALIDATOR.FORMAT_CHECKER
         )

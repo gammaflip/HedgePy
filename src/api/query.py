@@ -5,8 +5,8 @@ from pandas import Series
 from numpy import array
 from enum import Enum
 from typing import Sequence, Optional, Any, Literal as StrLiteral
-from src.api.bases.Data import Query, CopyQuery, Field
-
+from src.api.bases.Data import Field
+from src.api.bases.Database import Query, CopyQuery
 
 """
 PSYCOPG ROW FACTORIES
