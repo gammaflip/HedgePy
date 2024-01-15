@@ -1,16 +1,16 @@
+import api.bases.Database
 from src import config
-from src.api import query
 from src.api import vendors
 from src.api.bases.Data import Data, Result
 from src.api.bases.Database import Query, CopyQuery
-from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
+from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session, RowFactories
 from src.api.bases.Vendor import ResourceMap
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
 from pathlib import Path
 
 
-DEFAULT_ROW_FACTORY = query.tuple_row
+DEFAULT_ROW_FACTORY = RowFactories.tuple_row
 VENDOR_DIR = ResourceMap(vendors)
 
 
@@ -65,7 +65,7 @@ def execute_vendor_query(vendor: str, endpoint: str, **kwargs) -> Result:
 
 def register_endpoints(conn: Connection):
     for vendor in VENDOR_DIR:
-        q = query.insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
+        q = api.bases.Database.insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
 
         try:
             execute_db_query(q, conn)
@@ -73,7 +73,7 @@ def register_endpoints(conn: Connection):
             pass
 
         for endpoint in vendor:
-            q = query.insert_row(
+            q = api.bases.Database.insert_row(
                 schema="meta",
                 table="endpoints",
                 columns=("endpoint", "vendor", "signature"),

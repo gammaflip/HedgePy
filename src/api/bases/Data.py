@@ -1,3 +1,6 @@
+import re
+from datetime import date, time, datetime
+from typing import Type
 from sys import getsizeof
 from numpy import array, ndarray
 from pandas import DataFrame, Timestamp
@@ -9,40 +12,36 @@ from dataclasses import dataclass
 DATA TYPES
 """
 
-PY_TYPES = {str, float, int, bool, Timestamp, tuple, dict}
-DB_TYPES = {'text', 'float', 'int', 'bool', 'timestamp', 'array', 'json'}
-_DB_TYPE_ALIASES = {'character varying': 'text', 'integer': 'int', 'boolean': 'bool'}
-_PY_TO_DB = dict(zip(PY_TYPES, DB_TYPES))
-_DB_TO_PY = dict(zip(DB_TYPES, PY_TYPES))
+TYPE_MAP = {   # | pytype | regex |
+    "text":      (str,      r"(?P<str>.*)"),
+    "bool":      (bool,     r"(?P<bool>true|false)"),
+    "null":      (None,     r"(?P<none>NULL)"),
+    "int":       (int,      r"(?P<sign>\-)?(?P<int>[0-9]*)"),
+    "float":     (float,    r"(?P<sign>\-)?(?P<int>[0-9]*)(?P<dec>\.)(?P<frac>[0-9]*)?"),
+    "date":      (date,     r"(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})"),
+    "time":      (time,     r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2}).(?P<microsecond>\d{6})"),
+    "timestamp": (datetime, r"(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2}) "
+                            r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2}).(?P<microsecond>\d{6})")
+}
 
 
-def map_type(typ: type | str | object) -> str | type:
-    """Cast between Python and PostgreSQL types"""
+def resolve_type(value: str) -> Type:
+    for dbtype, (pytype, pattern) in reversed(TYPE_MAP.items()):
+        pattern = re.compile(pattern)
+        if match := pattern.match(value):
+            if match.group() == value:
+                return pytype
 
-    # return Python type from string
-    if isinstance(typ, str) and typ in DB_TYPES:
-        return _DB_TO_PY[typ]
 
-    # return Python type from alias of string
-    elif isinstance(typ, str) and typ in _DB_TYPE_ALIASES.keys():
-        return _DB_TO_PY[_DB_TYPE_ALIASES[typ]]
+def db_to_py_type(typ: str) -> Type:
+    pytype, regex = TYPE_MAP[typ.lower()]
+    return pytype
 
-    # return DB type from Python type
-    elif typ in PY_TYPES:
-        return _PY_TO_DB[typ]
 
-    # return DB type from type of Python type
-    elif _ := type(typ) in PY_TYPES:
-        return _PY_TO_DB[_]
-
-    # return DB type from typing.Generic
-    elif hasattr(typ, '__origin__'):
-        if typ.__origin__ in PY_TYPES:
-            return _PY_TO_DB[typ.__origin__]
-
-    # raise error for uncaught type
-    else:
-        raise TypeError(f'"{typ}" ({_}) is not a valid Python type')
+def py_to_db_type(typ: Type) -> str:
+    for dbtype, (pytype, pattern) in reversed(TYPE_MAP.items()):
+        if pytype == typ:
+            return dbtype
 
 
 """
@@ -53,7 +52,7 @@ DATA OBJECTS
 @dataclass
 class Field:
     name: str
-    dtype: PY_TYPES
+    dtype: str
 
     @property
     def dbtype(self) -> str:

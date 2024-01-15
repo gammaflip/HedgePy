@@ -2,63 +2,73 @@ import json
 import jsonschema
 from pathlib import Path
 from src import config
-from collections import UserDict
+from typing import Optional
 
 
-TEMPLATE_DIR = Path(config.PROJECT_ENV["ROOT"]) / "src" / "api" / "templates"
-with open(TEMPLATE_DIR / "meta" / "template.json") as fp:
-    TEMPLATE_SCHEMA = json.load(fp)
-
-_VALIDATOR = jsonschema.Draft202012Validator
-
-try:
-    _VALIDATOR.check_schema(TEMPLATE_SCHEMA)
-except jsonschema.exceptions.SchemaError as e:
-    raise ValueError("Meta template schema failed validation:"
-                     f"{e.message}")
+ROOT = Path(config.PROJECT_ENV["ROOT"]) / "src" / "api" / "templates"
+VALIDATOR = jsonschema.Draft202012Validator
 
 
-def load(template: str, meta: bool = False) -> dict:
-    template_dir = TEMPLATE_DIR / 'meta' if meta else TEMPLATE_DIR
-    with open(template_dir / f"{template}.json") as fp:
-        return json.load(fp)
+def validate(schema: dict, instance: Optional[dict] = None) -> bool:
+    valid = True
+
+    if instance:
+        try:
+            jsonschema.validate(
+                instance=instance,
+                schema=schema,
+                cls=VALIDATOR,
+                format_checker=VALIDATOR.FORMAT_CHECKER
+            )
+        except jsonschema.exceptions.ValidationError as e:
+            valid = False
+
+    else:
+        try:
+            VALIDATOR.check_schema(schema)
+        except jsonschema.exceptions.SchemaError as e:
+            valid = False
+
+    return valid
 
 
-def validate(template: dict | UserDict, template_schema: dict | UserDict = TEMPLATE_SCHEMA) -> bool:
-    try:
-        jsonschema.validate(
-            instance=template,
-            schema=template_schema,
-            cls=_VALIDATOR,
-            format_checker=_VALIDATOR.FORMAT_CHECKER
+def get_template(template: str) -> dict:
+    with open(ROOT / f"{template}.json") as file:
+        template = json.load(file)
+
+    if validate(template):
+        return template
+
+    else:
+        raise ValueError("Template failed validation")
+
+
+def get_schema(template: str, schema: str) -> dict:
+    with open(ROOT / template / f"{schema}.json") as file:
+        schema = json.load(file)
+
+    template_schema = get_template(template)
+
+    if validate(template_schema, schema):
+        return schema
+
+    else:
+        raise ValueError("Schema failed validation")
+
+
+def get_templates() -> dict:
+    return dict(
+        zip(
+            map(lambda x: x.stem, ROOT.glob("*.json")),
+            map(lambda x: get_template(x.stem), ROOT.glob("*.json"))
         )
-        return True
-    except jsonschema.exceptions.ValidationError:
-        return False
+    )
 
 
-class Template(UserDict):
-    def __init__(self, name: str):
-        self._name = name
-        template = load(name)
-        if not validate(template):
-            raise ValueError("Template failed validation")
-        super().__init__(template)
-
-    def __getitem__(self, key: int) -> dict:
-        return self.data["template"][key]
-
-    def __len__(self) -> int:
-        return len(self.data["template"])
-
-    def __iter__(self):
-        return iter(self.data["template"])
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-
-def templates() -> dict:
-    template_names = tuple(map(lambda t: getattr(t, 'stem'), TEMPLATE_DIR.glob("*.json")))
-    return dict(zip(template_names, map(Template, template_names)))
+def get_schemas(template: str) -> dict:
+    return dict(
+        zip(
+            map(lambda x: x.stem, (ROOT / template).glob("*.json")),
+            map(lambda x: get_schema(template, x.stem), (ROOT / template).glob("*.json"))
+        )
+    )
