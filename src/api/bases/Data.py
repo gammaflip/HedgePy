@@ -12,7 +12,8 @@ from dataclasses import dataclass
 DATA TYPES
 """
 
-TYPE_MAP = {   # | pytype | regex |
+TYPE_MAP = {
+  # | sql type | py type | regex |
     "text":      (str,      r"(?P<str>.*)"),
     "bool":      (bool,     r"(?P<bool>true|false)"),
     "null":      (None,     r"(?P<none>NULL)"),
@@ -33,12 +34,18 @@ def resolve_type(value: str) -> Type:
                 return pytype
 
 
-def db_to_py_type(typ: str) -> Type:
+def map_type():
+
+
+    return
+
+
+def _db_to_py_type(typ: str) -> Type:
     pytype, regex = TYPE_MAP[typ.lower()]
     return pytype
 
 
-def py_to_db_type(typ: Type) -> str:
+def _py_to_db_type(typ: Type) -> str:
     for dbtype, (pytype, pattern) in reversed(TYPE_MAP.items()):
         if pytype == typ:
             return dbtype
@@ -54,9 +61,12 @@ class Field:
     name: str
     dtype: str
 
+    """TODO: REWRITE VENDOR IMPLEMENTATIONS (STR REPRESENTATION -> PY TYPE), <-- PREFERRED 
+    OR CHANGE TYPE_MAP INTERFACE (PY TYPE -> STR REPRESENTATION)"""
+
     @property
     def dbtype(self) -> str:
-        return map_type(self.dtype)
+        return _db_to_py_type(self.dtype)
 
 
 @dataclass
