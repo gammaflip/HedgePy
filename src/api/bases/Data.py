@@ -1,6 +1,6 @@
 import re
 from datetime import date, time, datetime
-from typing import Type
+from typing import Type, Literal
 from sys import getsizeof
 from numpy import array, ndarray
 from pandas import DataFrame, Timestamp
@@ -25,6 +25,8 @@ TYPE_MAP = {
                             r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2}).(?P<microsecond>\d{6})")
 }
 
+DB_TYPE = Literal["text", "bool", "null", "int", "float", "date", "time", "timestamp"]
+
 
 def resolve_type(value: str) -> Type:
     for dbtype, (pytype, pattern) in reversed(TYPE_MAP.items()):
@@ -34,13 +36,7 @@ def resolve_type(value: str) -> Type:
                 return pytype
 
 
-def map_type():
-
-
-    return
-
-
-def _db_to_py_type(typ: str) -> Type:
+def _db_to_py_type(typ: DB_TYPE) -> Type:
     pytype, regex = TYPE_MAP[typ.lower()]
     return pytype
 
@@ -51,6 +47,13 @@ def _py_to_db_type(typ: Type) -> str:
             return dbtype
 
 
+def map_type(typ: DB_TYPE | Type) -> Type | DB_TYPE:
+    if isinstance(typ, str):
+        return _db_to_py_type(typ)
+    else:
+        return _py_to_db_type(typ)
+
+
 """
 DATA OBJECTS
 """
@@ -59,14 +62,11 @@ DATA OBJECTS
 @dataclass
 class Field:
     name: str
-    dtype: str
-
-    """TODO: REWRITE VENDOR IMPLEMENTATIONS (STR REPRESENTATION -> PY TYPE), <-- PREFERRED 
-    OR CHANGE TYPE_MAP INTERFACE (PY TYPE -> STR REPRESENTATION)"""
+    dtype: Type
 
     @property
     def dbtype(self) -> str:
-        return _db_to_py_type(self.dtype)
+        return _py_to_db_type(self.dtype)
 
 
 @dataclass

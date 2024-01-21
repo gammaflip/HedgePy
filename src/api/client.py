@@ -1,12 +1,14 @@
-import api.bases.Database
+import asyncio
+import api.bases.Query
 from src import config
 from src.api import vendors
 from src.api.bases.Data import Data, Result
-from src.api.bases.Database import Query, CopyQuery
-from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session, RowFactories
+from api.bases.Query import Query, CopyQuery, RowFactories
+from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
 from src.api.bases.Vendor import ResourceMap
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Json
+from psycopg import AsyncConnection
 from pathlib import Path
 
 
@@ -21,9 +23,9 @@ def initialize(dbname: str, dbuser: str, dbpass: str, **dbkwargs) -> tuple[Profi
     return profile, session, conn
 
 
-def make_db_query(qry: str, **kwargs) -> Query | CopyQuery:
-    f = getattr(query, qry)
-    return f(**kwargs)
+# def make_db_query(qry: str, **kwargs) -> Query | CopyQuery:
+#     f = getattr(query, qry)
+#     return f(**kwargs)
 
 
 def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = True) -> Result:
@@ -65,7 +67,7 @@ def execute_vendor_query(vendor: str, endpoint: str, **kwargs) -> Result:
 
 def register_endpoints(conn: Connection):
     for vendor in VENDOR_DIR:
-        q = api.bases.Database.insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
+        q = api.bases.Query.insert_row(schema="meta", table="vendors", columns=("vendor",), row=(vendor.name,))
 
         try:
             execute_db_query(q, conn)
@@ -73,7 +75,7 @@ def register_endpoints(conn: Connection):
             pass
 
         for endpoint in vendor:
-            q = api.bases.Database.insert_row(
+            q = api.bases.Query.insert_row(
                 schema="meta",
                 table="endpoints",
                 columns=("endpoint", "vendor", "signature"),

@@ -1,6 +1,6 @@
 import asyncio
 import struct
-from src.api.bases import Database, IO
+from src.api.bases import Database, _IO
 from src import config
 from types import NoneType
 

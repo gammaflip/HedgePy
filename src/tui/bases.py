@@ -1,8 +1,7 @@
 from pathlib import Path
 
 from src import config
-from src.api import client
-from src.api.bases.Database import Profile, Session, Connection
+from src.api.bases.Database import Profile, Session, Connection, init
 
 from src.tui import content
 
@@ -136,8 +135,8 @@ class HedgePyApp(App):
             self.push_screen(LoginWindow())
 
     def on_login_prompt_login_message(self, message: LoginPrompt.LoginMessage):
-        profile, session, connection = api.initialize(
-            dbname=message.dbname, dbuser=message.dbuser, dbpass=message.dbpass, port=message.dbport
+        profile, session, connection = init(
+            dbname=message.dbname, user=message.dbuser, password=message.dbpass, port=message.dbport
         )
 
         self.db_profile = profile
@@ -145,6 +144,6 @@ class HedgePyApp(App):
         self.db_primary_connection_handle = connection.handle
         self.logged_in = True
 
-    def on_database_tab_database_query(self, message: content.database.DatabaseTab.DatabaseQuery):
-        res = api.execute_db_query(message.msg, conn=self.main_db_connection)
-        self.query_one("DatabaseTab").results_queue.append(res)
+ #   def on_database_tab_database_query(self, message: content.database.DatabaseTab.DatabaseQuery):
+ #       res = api.execute_db_query(message.msg, conn=self.main_db_connection)
+ #       self.query_one("DatabaseTab").results_queue.append(res)

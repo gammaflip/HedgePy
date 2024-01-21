@@ -1,7 +1,8 @@
 from src import config
 import requests
 from typing import Literal, Optional
-from src.api.bases.Data import Data, Field, Timestamp
+from src.api.bases.Data import Data, Field
+from pandas import Timestamp
 
 # DOCS: https://fred.stlouisfed.org/docs/api/fred/
 ROOT = 'https://api.stlouisfed.org/fred'

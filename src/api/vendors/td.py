@@ -213,7 +213,7 @@ def fmt_market_hours(res: requests.Response, params: dict) -> Data:
     return Data(fields=fields, records=records)
 
 
-def fmt_option_chain(res: requests.Response, params: dict) -> Data:
+def fmt_option_chain(res: requests.Response) -> Data:
     calls = res.json()['callExpDateMap']
     puts = res.json()['putExpDateMap']
     expiries = tuple(calls.keys())
@@ -259,7 +259,7 @@ def fmt_option_chain(res: requests.Response, params: dict) -> Data:
     return Data(fields=fields, records=data)
 
 
-def fmt_price_history(res: requests.Response, params: dict) -> Data:
+def fmt_price_history(res: requests.Response) -> Data:
     fields = (
         Field('open', float),
         Field('high', float),
@@ -283,7 +283,7 @@ def fmt_price_history(res: requests.Response, params: dict) -> Data:
     return Data(fields=fields, records=records)
 
 
-def fmt_quote(res: requests.Response, params: dict) -> Data:
+def fmt_quote(res: requests.Response) -> Data:
     _, data = res.json().popitem()
     return Data(
         fields=(

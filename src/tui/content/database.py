@@ -2,8 +2,7 @@ from textual.app import ComposeResult
 from textual.widgets import TabPane, Tree
 from textual.message import Message
 from textual.reactive import reactive
-
-from src import api
+from src.api.bases import Query
 
 IX = 2
 SYMBOL = ":database:"
@@ -20,7 +19,7 @@ class DatabaseTab(TabPane):
     results_queue = reactive(dict())
 
     class DatabaseQuery(Message):
-        def __init__(self, msg: api.bases.Database.Query, corr_id: str):
+        def __init__(self, msg: Query, corr_id: str):
             super().__init__()
             self.msg = msg
             self.corr_id = corr_id
