@@ -1,40 +1,12 @@
-from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Type, Sequence, Any, Literal as StrLiteral
+from typing import Optional, Sequence, Any, Literal as StrLiteral
 from numpy import array
 from pandas import Series
 from psycopg import Cursor
 from psycopg.rows import RowMaker, tuple_row, dict_row, class_row, args_row, kwargs_row
-from psycopg.sql import SQL, Composed, Identifier, Literal
-from src.api.bases.Data import Field, map_type
-
-
-@dataclass
-class Query:
-    body: SQL | Composed | str
-    values: Optional[tuple | tuple[tuple]] = None
-    returns: Optional[tuple[Field, ...] | tuple[tuple[str, Type], ...]] = None
-
-    def __post_init__(self):
-        if not isinstance(self.body, SQL | Composed):
-            self.body = SQL(self.body)
-        if self.returns and not all((isinstance(ret, Field) for ret in self.returns)):
-            returns = []
-            for ret in self.returns:
-                if not isinstance(ret, Field):
-                    name, typ = ret
-                    returns.append(Field(name=name, dtype=map_type(typ)))
-                else:
-                    returns.append(ret)
-            self.returns = tuple(returns)
-
-    @property
-    def to_cursor(self) -> dict: return {'query': self.body, 'params': self.values}
-
-
-class CopyQuery(Query):
-    @property
-    def to_cursor(self) -> SQL: return self.body
+from psycopg.sql import SQL, Identifier, Literal
+from src.api.bases.IO import DBRequest, CopyDBRequest
+from src.api.bases.Data import Field
 
 
 def _np_row(cursor: Cursor) -> RowMaker:
@@ -72,22 +44,22 @@ class RowFactories(Enum):
     value_row = _value_row
 
 
-def insert_row(schema: str, table: str, columns: tuple[str, ...], row: tuple) -> Query:
+def insert_row(schema: str, table: str, columns: tuple[str, ...], row: tuple) -> DBRequest:
     placeholders = SQL(", ").join([SQL("(%s)") for col_name in columns])
     body = SQL("""INSERT INTO {schema}.{table} ({col_names}) VALUES ({placeholders});""")\
         .format(schema=Identifier(schema),
                 table=Identifier(table),
                 col_names=SQL(", ").join(map(Identifier, columns)),
                 placeholders=placeholders)
-    return Query(body=body, values=row)
+    return DBRequest(body=body, values=row)
 
 
-def insert_rows(schema: str, table: str, columns: tuple[str, ...], rows: tuple[tuple]) -> CopyQuery:
+def insert_rows(schema: str, table: str, columns: tuple[str, ...], rows: tuple[tuple]) -> CopyDBRequest:
     body = SQL("""COPY {schema}.{table} ({col_names}) FROM STDIN;""")\
         .format(schema=Identifier(schema),
                 table=Identifier(table),
                 col_names=SQL(", ").join(map(Identifier, columns)))
-    return CopyQuery(body=body, values=rows)
+    return CopyDBRequest(body=body, values=rows)
 
 
 def upsert_values(
@@ -96,7 +68,7 @@ def upsert_values(
         columns: tuple[str],
         values: tuple,
         conditions: Optional[tuple[tuple[str, StrLiteral['=', '!=', '>', '<', '>=', '<='], str], ...]] = None
-) -> Query:
+) -> DBRequest:
     assert len(columns) == len(values)
     columns = SQL(", ").join([SQL("{col_name}=%s").format(col_name=Identifier(col_name)) for col_name in columns])
 
@@ -114,7 +86,7 @@ def upsert_values(
         body = SQL("""UPDATE {schema}.{table} SET {columns};""").\
             format(schema=schema, table=table, columns=columns)
 
-    return Query(body=body, values=values)
+    return DBRequest(body=body, values=values)
 
 
 def select_values(
@@ -122,7 +94,7 @@ def select_values(
     table: str,
     columns: tuple[Field],
     conditions: Optional[tuple[tuple[str, StrLiteral['=', '!=', '>', '<', '>=', '<='], str], ...]] = None
-) -> Query:
+) -> DBRequest:
     returns = columns
     columns = SQL(", ").join(map(Identifier, (col.name for col in columns)))
 
@@ -140,92 +112,92 @@ def select_values(
         body = SQL("""SELECT ({columns}) FROM {schema}.{table};""").\
             format(schema=schema, table=table, columns=columns)
 
-    return Query(body=body, returns=returns)
+    return DBRequest(body=body, returns=returns)
 
 
-def create_database(name: str) -> Query:
+def create_database(name: str) -> DBRequest:
     body = SQL("""CREATE DATABASE {name};""")\
         .format(name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def create_schema(name: str) -> Query:
+def create_schema(name: str) -> DBRequest:
     body = SQL("""CREATE SCHEMA {name};""")\
         .format(name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def create_table(name: str, schema: str, columns: Optional[tuple[tuple[str, str]]]) -> Query:
+def create_table(name: str, schema: str, columns: Optional[tuple[tuple[str, str]]]) -> DBRequest:
     columns = SQL(", ").join([f'{Identifier(cname)} {ctype}' for (cname, ctype) in columns]) if columns else ""
     body = SQL("""CREATE TABLE {schema}.{name}({columns});""")\
         .format(schema=Identifier(schema), name=Identifier(name), columns=columns)
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def create_column(name: str, schema: str, table: str, dtype: str) -> Query:
+def create_column(name: str, schema: str, table: str, dtype: str) -> DBRequest:
     body = SQL("""ALTER TABLE {schema}.{table} ADD COLUMN {name} {dtype};""")\
         .format(schema=Identifier(schema), table=Identifier(table), name=Identifier(name), dtype=dtype)
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def create_index(table: str, columns: tuple[str], schema: Optional[str] = None) -> Query:
+def create_index(table: str, columns: tuple[str], schema: Optional[str] = None) -> DBRequest:
     ix_name = "_".join([table, *columns])
     columns = SQL(", ").join([Identifier(column) for column in columns])
     body = SQL("""CREATE INDEX {ix_name} ON {schema}.{table} ({columns});""")\
         .format(ix_name=Identifier(ix_name), schema=Identifier(schema), table=Identifier(table), columns=columns)
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def list_database() -> Query:
+def list_database() -> DBRequest:
     body = SQL("""SELECT datname FROM pg_catalog.pg_database;""")
-    return Query(body=body, returns=(('name', str),))
+    return DBRequest(body=body, returns=(('name', str),))
 
 
-def list_schema(database: str) -> Query:
+def list_schema(database: str) -> DBRequest:
     body = SQL("""SELECT schema_name FROM information_schema.schemata WHERE catalog_name=%s;""")
-    return Query(body=body, returns=(('name', str),), values=(database,))
+    return DBRequest(body=body, returns=(('name', str),), values=(database,))
 
 
-def list_table(database: str, schema: str) -> Query:
+def list_table(database: str, schema: str) -> DBRequest:
     body = SQL("""SELECT table_name FROM information_schema.tables WHERE table_catalog=%s AND table_schema=%s;""")
-    return Query(body=body, returns=(('name', str),), values=(database, schema))
+    return DBRequest(body=body, returns=(('name', str),), values=(database, schema))
 
 
-def list_column(database: str, schema: str, table: str) -> Query:
+def list_column(database: str, schema: str, table: str) -> DBRequest:
     body = SQL(
         """SELECT column_name, data_type, column_default FROM information_schema.columns 
         WHERE table_catalog=%s AND table_schema=%s AND table_name=%s;"""
     )
-    return Query(body=body, returns=(('name', str), ('type', str), ('default', str)), values=(database, schema, table))
+    return DBRequest(body=body, returns=(('name', str), ('type', str), ('default', str)), values=(database, schema, table))
 
 
-def list_index(table: str, schema: str) -> Query:
+def list_index(table: str, schema: str) -> DBRequest:
     body = SQL("""SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename=%s AND schemaname=%s;""")
-    return Query(body=body, returns=(('name', str),), values=(table, schema))
+    return DBRequest(body=body, returns=(('name', str),), values=(table, schema))
 
 
-def update_database(name: str, new_name: Optional[str] = None, new_param: Optional[tuple[str, str]] = None) -> Query:
+def update_database(name: str, new_name: Optional[str] = None, new_param: Optional[tuple[str, str]] = None) -> DBRequest:
     if new_name:
         body = SQL("""ALTER DATABASE {name} RENAME TO {new_name};""")\
             .format(name=Identifier(name), new_name=Identifier(new_name))
-        return Query(body=body)
+        return DBRequest(body=body)
 
     elif new_param:
         param, value = new_param
         body = SQL("""ALTER DATABASE {name} SET {param} TO %s;""")\
             .format(name=Identifier(name), param=Identifier(param))
-        return Query(body=body, values=(value,))
+        return DBRequest(body=body, values=(value,))
 
     else:
         body = SQL("""ALTER DATABASE {name} RESET ALL;""")\
             .format(name=Identifier(name))
-        return Query(body=body)
+        return DBRequest(body=body)
 
 
-def update_schema(name: str, new_name: str) -> Query:
+def update_schema(name: str, new_name: str) -> DBRequest:
     body = SQL("""ALTER SCHEMA {name} RENAME TO {new_name};""")\
         .format(name=Identifier(name), new_name=Identifier(new_name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
 def update_table(
@@ -233,7 +205,7 @@ def update_table(
         new_name: Optional[str] = None,
         add_column: Optional[tuple[str, str]] = None,
         drop_column: Optional[str] = None
-) -> Query:
+) -> DBRequest:
     if new_name:
         body = SQL("""ALTER TABLE {name} RENAME TO {new_name};""")\
             .format(name=Identifier(name), new_name=Identifier(new_name))
@@ -250,7 +222,7 @@ def update_table(
     else:
         raise Exception("Must provide one of 'new_name', 'add_column', or 'drop_column'")
 
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
 def update_column(
@@ -260,14 +232,14 @@ def update_column(
     new_name: Optional[str] = None,
     new_type: Optional[str] = None,
     new_default: Optional[str] = None,
-) -> Query:
+) -> DBRequest:
     if new_name:
         body = SQL("""ALTER TABLE {schema}.{table} RENAME COLUMN {name} TO {new_name};""")\
             .format(schema=Identifier(schema),
                     table=Identifier(table),
                     name=Identifier(name),
                     new_name=Identifier(new_name))
-        return Query(body=body)
+        return DBRequest(body=body)
 
     elif new_type:
         body = SQL("""ALTER TABLE {schema}.{table} ALTER COLUMN {name} TYPE {new_type};""")\
@@ -275,51 +247,51 @@ def update_column(
                     table=Identifier(table),
                     name=Identifier(name),
                     new_type=Identifier(new_type))
-        return Query(body=body)
+        return DBRequest(body=body)
 
     elif new_default:
         body = SQL("""ALTER TABLE {schema}.{table} ALTER COLUMN {name} SET DEFAULT %s;""")\
             .format(schema=Identifier(schema), table=Identifier(table), name=Identifier(name))
-        return Query(body=body, values=(new_default,))
+        return DBRequest(body=body, values=(new_default,))
 
     else:
         raise Exception("Must provide one of 'new_type', 'new_default', or 'new_name'")
 
 
-def update_index(name: str, new_name: str, schema: str) -> Query:
+def update_index(name: str, new_name: str, schema: str) -> DBRequest:
     body = SQL("""ALTER INDEX {schema}.{name} RENAME TO {new_name};""")\
         .format(schema=Identifier(schema), name=Identifier(name), new_name=Identifier(new_name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def delete_database(name: str) -> Query:
+def delete_database(name: str) -> DBRequest:
     body = SQL("""DROP DATABASE {name} CASCADE;""")\
         .format(name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def delete_schema(name: str) -> Query:
+def delete_schema(name: str) -> DBRequest:
     body = SQL("""DROP SCHEMA {name} CASCADE;""")\
         .format(name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def delete_table(name: str, schema: str) -> Query:
+def delete_table(name: str, schema: str) -> DBRequest:
     body = SQL("""DROP TABLE {schema}.{name} CASCADE;""")\
         .format(schema=Identifier(schema), name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def delete_column(name: str, table: str, schema: Optional[str] = None) -> Query:
+def delete_column(name: str, table: str, schema: Optional[str] = None) -> DBRequest:
     body = SQL("""ALTER TABLE {schema}.{table} DROP COLUMN {name} CASCADE;""")\
         .format(schema=Identifier(schema), table=Identifier(table), name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
-def delete_index(name: str, schema: Optional[str] = None) -> Query:
+def delete_index(name: str, schema: Optional[str] = None) -> DBRequest:
     body = SQL("""DROP INDEX {schema}.{name} CASCADE;""")\
         .format(schema=Identifier(schema), name=Identifier(name))
-    return Query(body=body)
+    return DBRequest(body=body)
 
 
 def snapshot():
@@ -335,7 +307,7 @@ def snapshot():
         .format(db_exclude=SQL(", ").join(map(Literal, db_exclude)),
                 schema_exclude=SQL(", ").join(map(Literal, schema_exclude)))
     returns = (('column', str), ('type', str), ('default', str), ('database', str), ('schema', str), ('table', str))
-    return Query(body=body, returns=returns)
+    return DBRequest(body=body, returns=returns)
 
 
 def resolve_type(schema: str, table: str, column: str):
@@ -344,4 +316,4 @@ def resolve_type(schema: str, table: str, column: str):
                   WHERE table_schema = %s
                   AND table_name = %s
                   AND column_name = %s;""")
-    return Query(body=body, values=(schema, table, column), returns=(('type', str),))
+    return DBRequest(body=body, values=(schema, table, column), returns=(('type', str),))

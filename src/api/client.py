@@ -2,8 +2,9 @@ import asyncio
 import api.bases.Query
 from src import config
 from src.api import vendors
-from src.api.bases.Data import Data, Result
-from api.bases.Query import Query, CopyQuery, RowFactories
+from src.api.bases.Data import Data
+from api.bases.Query import RowFactories
+from api.bases.IO import DBRequest, CopyDBRequest, Result
 from src.api.bases.Database import Database, Schema, Table, Column, Profile, Connection, Session
 from src.api.bases.Vendor import ResourceMap
 from psycopg.errors import UniqueViolation
@@ -28,12 +29,12 @@ def initialize(dbname: str, dbuser: str, dbpass: str, **dbkwargs) -> tuple[Profi
 #     return f(**kwargs)
 
 
-def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = True) -> Result:
+def execute_db_query(qry: DBRequest | CopyDBRequest, conn: Connection, commit: bool = True) -> Result:
     with conn.cursor(row_factory=DEFAULT_ROW_FACTORY) as cur:
         try:
-            if isinstance(qry, Query):
+            if isinstance(qry, DBRequest):
                 cur.execute(**qry.to_cursor)
-            elif isinstance(qry, CopyQuery):
+            elif isinstance(qry, CopyDBRequest):
                 with cur.copy(qry.to_cursor) as copy:
                     copy.write(qry.values)
         except Exception as e:
@@ -54,7 +55,7 @@ def execute_db_query(qry: Query | CopyQuery, conn: Connection, commit: bool = Tr
 
 def execute_db_script(script: str, conn: Connection) -> Result:
     filepath = Path(config.PROJECT_ENV['ROOT']) / 'src' / 'api' / 'sql' / f'{script}.sql'
-    qry = Query(body=open(filepath).read())
+    qry = DBRequest(body=open(filepath).read())
     res = execute_db_query(qry=qry, conn=conn)
     return res
 

@@ -4,7 +4,7 @@ from types import NoneType, ModuleType
 from pandas import Timestamp, Timedelta
 from dataclasses import dataclass
 from requests import Response
-from src.api.bases.Data import Data
+from src.api.bases.IO import HTTPRequest, Result
 
 
 @dataclass
@@ -44,7 +44,7 @@ class Authorization(_MetaFunction):
 
 
 class Formatter(_MetaFunction):
-    def format(self, res: Response, params: dict) -> Data:
+    def format(self, res: Response, params: dict) -> Result:
         return self(res, params)
 
 

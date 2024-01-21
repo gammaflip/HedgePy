@@ -1,15 +1,24 @@
-import asyncio
 import json
 import jsonschema
 import uuid
 import struct
 from abc import ABC, abstractmethod
-from typing import TypeVar
 
 
 FMT_HEADER = "!16s2I"
 FMT_DELIM = "x"
 DELIM = b"\x00"
+
+
+def unpack_header(header: bytes) -> tuple[str, int, int]:
+    return struct.unpack(FMT_HEADER, header)
+
+
+def pack(id: str, message_type: int, message_length: int, content: bytes) -> bytes:
+    return struct.pack(f"{FMT_HEADER}{DELIM}{message_length}s",
+                       id, message_type, message_length, DELIM, content
+    )
+
 
 
 """
@@ -109,22 +118,19 @@ class JsonMessage(StringMessage):
         return json.loads(super().content)
 
 
-"""
-REQUEST/RESPONSE CLASSES
-"""
-
-
 class Request(JsonMessage):
     MESSAGE_TYPE = 3
     SCHEMA = {
-      "type": "object",
-      "properties": {
-          "fields": {"type": "array", "items": {"type": "string"}},
-          "symbols": {"type": "array", "items": {"type": "string"}},
-          "start": {"type": "string", "format": "date-time"},
-          "end": {"type": "string", "format": "date-time"},
-          "resolution": {"type": "string", "format": "duration"}
-      }
+        "type": "object",
+        "properties": {
+            "corr_id": {"type": "string", "format": "uuid"},
+            "fields": {"type": "array", "items": {"type": "string"}},
+            "symbols": {"type": "array", "items": {"type": "string"}},
+            "start": {"type": "string", "format": "date-time"},
+            "end": {"type": "string", "format": "date-time"},
+            "resolution": {"type": "string", "format": "duration"}
+        },
+        "required": ["corr_id"]
     }
 
 
@@ -133,14 +139,29 @@ class Response(JsonMessage):
     SCHEMA = {
         "type": "object",
         "properties": {
+            "corr_id": {"type": "string", "format": "uuid"},
             "content": {"type": "array", "items": {"type": "array"}},
-            "error": {"type": "string"}
-        }
+            "error": {"type": "string"},
+            "callback": {"type": "string"}
+        },
+        "required": ["corr_id", "content"]
     }
 
 
-MESSAGES = (Message, StringMessage, JsonMessage, Request, Response)
-MessageType = TypeVar("MessageType", *MESSAGES)
+class MessageFactory:
+    MAP: dict = {
+        0: Message,
+        1: StringMessage,
+        2: JsonMessage,
+        3: Request,
+        4: Response
+    }
+
+    def __call__(self, message_type: int, message: bytes):
+        return self.MAP[message_type](message)
+
+
+MessageType = Message | StringMessage | JsonMessage | Request | Response
 
 
 def _make_string_message(message: str):

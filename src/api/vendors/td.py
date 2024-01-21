@@ -1,7 +1,8 @@
 from src import config
 import requests
-from typing import Literal, Optional
+from typing import Literal, Optional, Callable
 from src.api.bases.Data import Data, Field, Timestamp
+from src.api.bases.IO import HTTPRequest
 
 
 # AUTH: https://developer.tdameritrade.com/content/simple-auth-local-apps
@@ -18,7 +19,7 @@ UTILITY FUNCTIONS
 """
 
 
-def authenticate() -> tuple[str, None]:
+def authenticate() -> tuple[HTTPRequest, Callable]:
     url = 'https://api.tdameritrade.com/v1/oauth2/token'
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     data = {
@@ -28,9 +29,12 @@ def authenticate() -> tuple[str, None]:
     }
 
     res = requests.post(url, headers=headers, data=data)
-    access_token = res.json()['access_token']
+    res = HTTPRequest('POST', url=url, headers=headers, params=data)
 
-    return access_token, None
+    def token(response):
+        return response.json()['access_token']
+
+    return res, token
 
 
 """
@@ -42,23 +46,22 @@ def get_instrument(
         authorization: str,
         symbol: str,
         projection: Literal['symbol-search', 'symbol-regex', 'desc-search', 'desc-regex', 'fundamental'] = 'symbol-search'
-) -> tuple[requests.Response, dict]:
+) -> HTTPRequest:
     url = f'https://api.tdameritrade.com/v1/instruments'
     headers = {'Authorization': f'Bearer {authorization}'}
     params = {'symbol': symbol, 'projection': projection}
-    return requests.get(url, headers=headers, params=params), params
+    return HTTPRequest(url=url, headers=headers, params=params)
 
 
 def get_market_hours(
         authorization: str,
         date: Timestamp,
         market: Literal['EQUITY', 'OPTION', 'FUTURE', 'BOND', 'FOREX'] = 'EQUITY',
-) -> tuple[requests.Response, dict]:
+) -> HTTPRequest:
     url = f'https://api.tdameritrade.com/v1/marketdata/hours'
     headers = {'Authorization': f'Bearer {authorization}'}
     params = {'date': date.strftime(DFMT), 'markets': market}
-
-    return requests.get(url, headers=headers, params=params), params
+    return HTTPRequest(url=url, headers=headers, params=params)
 
 
 def get_option_chain(
@@ -73,7 +76,7 @@ def get_option_chain(
         strike: Optional[float] = None,
         from_date: Optional[Timestamp] = None,
         to_date: Optional[Timestamp] = None,
-) -> tuple[requests.Response, dict]:
+) -> HTTPRequest:
     url = f'https://api.tdameritrade.com/v1/marketdata/chains'
     headers = {'Authorization': f'Bearer {authorization}'}
     params = {
@@ -96,7 +99,7 @@ def get_option_chain(
     if to_date is not None:
         params['toDate'] = to_date.strftime(DFMT)
 
-    return requests.get(url, headers=headers, params=params), params
+    return HTTPRequest(url=url, headers=headers, params=params)
 
 
 def get_price_history(
@@ -108,7 +111,7 @@ def get_price_history(
         frequency: int = 1,
         end_date: Optional[Timestamp] = None,
         start_date: Optional[Timestamp] = None,
-) -> tuple[requests.Response, dict]:
+) -> HTTPRequest:
     url = f'https://api.tdameritrade.com/v1/marketdata/{symbol}/pricehistory'
     headers = {'Authorization': f'Bearer {authorization}'}
     params = {
@@ -124,18 +127,17 @@ def get_price_history(
     if start_date is not None:
         params['startDate'] = start_date.strftime(DFMT)
 
-    return requests.get(url, headers=headers, params=params), params
+    return HTTPRequest(url=url, headers=headers, params=params)
 
 
 def get_quote(
         authorization: str,
         symbol: str,
-) -> tuple[requests.Response, dict]:
+) -> HTTPRequest:
     url = f'https://api.tdameritrade.com/v1/marketdata/quotes'
     headers = {'Authorization': f'Bearer {authorization}'}
     params = {'symbol': symbol}
-
-    return requests.get(url, headers=headers, params=params), params
+    return HTTPRequest(url=url, headers=headers, params=params)
 
 
 """

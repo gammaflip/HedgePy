@@ -123,9 +123,3 @@ class Data:
         return self.__str__()
 
 
-@dataclass
-class Result:
-    result: Data | Exception | None
-
-    def __post_init__(self):
-        self.timestamp = Timestamp.now()
