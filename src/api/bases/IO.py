@@ -26,25 +26,11 @@ class DBPool(AbstractAsyncContextManager):
 
     @asynccontextmanager
     async def connection(self):
-        conn = await self._pool.connection()
-        try:
+        async with self._pool.connection() as conn:
             yield conn
-        finally:
-            return
 
 
-
-
-async def db_transaction(conn: AsyncConnection, query: SQL, params: Optional[tuple] = None) -> list | None:
+async def db_transaction(conn, query: SQL, params: Optional[tuple] = None) -> list | None:
     async with conn.cursor() as cur:
         await cur.execute(query=query, params=params)
         return await cur.fetchall()
-
-
-async def test():
-    async with DBPool({'dbname': 'hedgepy', 'user': 'postgres', 'password': 'm1lom1lo'}) as pool:
-        async with pool.connection() as conn:
-            return await db_transaction(conn, query=SQL("SELECT 1;"))
-
-
-print(asyncio.run(test()))
