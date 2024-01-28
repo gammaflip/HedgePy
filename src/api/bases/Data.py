@@ -1,6 +1,6 @@
 import re
 from datetime import date, time, datetime
-from typing import Type, Literal
+from typing import Literal
 from sys import getsizeof
 from numpy import array, ndarray
 from pandas import DataFrame, Timestamp
@@ -26,9 +26,10 @@ TYPE_MAP = {
 }
 
 DB_TYPE = Literal["text", "bool", "null", "int", "float", "date", "time", "timestamp"]
+PY_TYPE = str | bool | None | int | float | date | time | datetime
 
 
-def resolve_type(value: str) -> Type:
+def resolve_type(value: str) -> PY_TYPE:
     for dbtype, (pytype, pattern) in reversed(TYPE_MAP.items()):
         pattern = re.compile(pattern)
         if match := pattern.match(value):
@@ -36,18 +37,18 @@ def resolve_type(value: str) -> Type:
                 return pytype
 
 
-def _db_to_py_type(typ: DB_TYPE) -> Type:
+def _db_to_py_type(typ: DB_TYPE) -> PY_TYPE:
     pytype, regex = TYPE_MAP[typ.lower()]
     return pytype
 
 
-def _py_to_db_type(typ: Type) -> str:
+def _py_to_db_type(typ: PY_TYPE) -> DB_TYPE:
     for dbtype, (pytype, pattern) in reversed(TYPE_MAP.items()):
         if pytype == typ:
             return dbtype
 
 
-def map_type(typ: DB_TYPE | Type) -> Type | DB_TYPE:
+def map_type(typ: DB_TYPE | PY_TYPE) -> PY_TYPE | DB_TYPE:
     if isinstance(typ, str):
         return _db_to_py_type(typ)
     else:
@@ -62,7 +63,7 @@ DATA OBJECTS
 @dataclass
 class Field:
     name: str
-    dtype: Type
+    dtype: PY_TYPE
 
     @property
     def dbtype(self) -> str:
@@ -79,14 +80,19 @@ class Data:
     def __init__(self, fields: Sequence[Field], records: Sequence[Sequence]):
         self._fields: tuple[Field, ...] = tuple(fields)
         self._records: tuple[tuple[Any, ...], ...] = self._ingest(fields, records)
-        self._size: float = reduce(lambda x, y: x + y, (sum(getsizeof(val) for val in tup) for tup in records),)
+        self._size: float = reduce(
+            lambda x, y: x + y, (sum(getsizeof(val) for val in tup) for tup in records),
+        ) if records else 0
 
     @staticmethod
-    def _ingest(fields, records) -> tuple[tuple[Any, ...], ...]:
-        if not all(len(record) == len(fields) for record in records):
-            raise ValueError("All rows must have the same length")
+    def _ingest(fields, records) -> tuple[tuple[Any, ...], ...] | None:
+        if records:
+            if not all(len(record) == len(fields) for record in records):
+                raise ValueError("All rows must have the same length")
+            else:
+                return tuple(tuple(record) for record in records)
         else:
-            return tuple(tuple(record) for record in records)
+            return tuple()
 
     @property
     def dims(self) -> tuple[int, int]:

@@ -1,10 +1,12 @@
 import asyncio
-from src.api.bases import IO, Message
 from src import config
-from types import NoneType
+from src.api import vendors
+from src.api.bases import IO, Message, Vendor, Query
+from typing import Optional
 from functools import partial
 
 
+VENDOR_DIR = Vendor.ResourceMap(vendors)
 MESSAGE_FACTORY = Message.MessageFactory()
 
 
@@ -18,11 +20,12 @@ async def read_one_message(reader: asyncio.StreamReader) -> Message.MessageType:
     return MESSAGE_FACTORY(message_type, message)
 
 
+# TODO: implement process_request and process_response after client
 async def process_request(message: Message.Request) -> Message.Response:
     ...
 
 
-async def process_response(message: Message.Response) -> NoneType | Message.MessageType:
+async def process_response(message: Message.Response) -> Optional[Message.MessageType]:
     ...
 
 
@@ -30,7 +33,7 @@ async def process_one_message(
         db_pool: IO.DBPool,
         http_pool: IO.HTTPPool,
         message: Message.MessageType
-) -> NoneType | Message.MessageType:
+) -> Optional[Message.MessageType]:
     match message.message_type:
         case 3:
             response = await process_request(message)

@@ -105,12 +105,12 @@ def select_values(
                 op=SQL(op),
                 val=Literal(val))
                 for name, op, val in conditions])
-        body = SQL("""SELECT ({columns}) FROM {schema}.{table} WHERE {conditions};""").\
-            format(schema=schema, table=table, columns=columns, conditions=conditions)
+        body = SQL("""SELECT ({columns}) FROM {schema}.{table} WHERE {conditions};"""). \
+            format(schema=Identifier(schema), table=Identifier(table), columns=columns, conditions=conditions)
 
     else:
-        body = SQL("""SELECT ({columns}) FROM {schema}.{table};""").\
-            format(schema=schema, table=table, columns=columns)
+        body = SQL("""SELECT ({columns}) FROM {schema}.{table};"""). \
+            format(schema=Identifier(schema), table=Identifier(table), columns=columns)
 
     return DBRequest(body=body, returns=returns)
 

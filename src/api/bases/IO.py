@@ -23,7 +23,7 @@ class DBRequest:
             for ret in self.returns:
                 if not isinstance(ret, Field):
                     name, typ = ret
-                    returns.append(Field(name=name, dtype=map_type(typ)))
+                    returns.append(Field(name=name, dtype=typ))
                 else:
                     returns.append(ret)
             self.returns = tuple(returns)
@@ -56,7 +56,7 @@ class HTTPRequest:
 
 @dataclass
 class Result:
-    result: Data | Exception | None
+    content: Data | Exception | None
 
     def __post_init__(self):
         self.timestamp = Timestamp.now()
@@ -68,6 +68,10 @@ class DBPool(AbstractAsyncContextManager):
     def __init__(self, conn_info: dict):
         conn_info = psycopg.conninfo.make_conninfo(**conn_info)
         self._pool = psycopg_pool.AsyncConnectionPool(conninfo=conn_info, open=False)
+
+    @property
+    def alive(self) -> bool:
+        return not self._pool.closed
 
     async def __aenter__(self):
         if self._pool:
@@ -85,12 +89,17 @@ class DBPool(AbstractAsyncContextManager):
             yield conn
 
 
-async def db_transaction(pool: DBPool, request: DBRequest) -> list | None:
+async def db_transaction(pool: DBPool, request: DBRequest) -> Result:
     async with pool as pool:
         async with pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(**request.to_cursor)
-                return await cur.fetchall()
+                if request.returns:
+                    res = await cur.fetchall()
+                    res = Data(fields=request.returns, records=res)
+                else:
+                    res = None
+    return Result(res)
 
 
 class HTTPPool(AbstractAsyncContextManager):
@@ -101,8 +110,13 @@ class HTTPPool(AbstractAsyncContextManager):
             base_url: Optional[str] = None,
             cookies: Optional[dict] = None,
             headers: Optional[dict] = None,
+            **kwargs
     ):
-        self._pool = aiohttp.ClientSession(base_url=base_url, cookies=cookies, headers=headers)
+        self._pool = aiohttp.ClientSession(base_url=base_url, cookies=cookies, headers=headers, **kwargs)
+
+    @property
+    def alive(self) -> bool:
+        return not self._pool.closed if self._pool else False
 
     async def __aenter__(self):
         if self._pool:

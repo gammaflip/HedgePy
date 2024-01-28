@@ -5,20 +5,18 @@ import struct
 from abc import ABC, abstractmethod
 
 
-FMT_HEADER = "!16s2I"
+FMT_HEADER = "!16s2b"
 FMT_DELIM = "x"
-DELIM = b"\x00"
+DELIM = b"\x00\x00\x00"
 
 
 def unpack_header(header: bytes) -> tuple[str, int, int]:
     return struct.unpack(FMT_HEADER, header)
 
 
-def pack(id: str, message_type: int, message_length: int, content: bytes) -> bytes:
-    return struct.pack(f"{FMT_HEADER}{DELIM}{message_length}s",
-                       id, message_type, message_length, DELIM, content
-    )
-
+def pack(id: bytes, message_type: int, message_length: int, content: bytes) -> bytes:
+    header = struct.pack(FMT_HEADER, id, message_type, message_length)
+    return header + DELIM + content
 
 
 """
@@ -158,7 +156,9 @@ class MessageFactory:
     }
 
     def __call__(self, message_type: int, message: bytes):
-        return self.MAP[message_type](message)
+        cls = self.MAP[message_type]
+        inst = cls(message)
+        return inst
 
 
 MessageType = Message | StringMessage | JsonMessage | Request | Response

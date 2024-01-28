@@ -12,7 +12,8 @@ dependencies = [
     "requests>=2.31.0",
     "jsonschema>=4.20.0",
     "psycopg>=3.1.17",
-    "textual>=0.47.1",
+    "psycopg_pool",
+    "textual[syntax]>=0.47.1",
     "aiohttp[speedups]>=3.9.1",
 ]
 readme = "README.md"
@@ -30,8 +31,8 @@ managed = true
 dev-dependencies = ["textual-dev"]
 
 [tool.rye.scripts]
-client = {call = 'src.tui.tui', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}
-client-dev = {cmd = 'textual run --dev ./src/tui/tui.py', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}
+client = {cmd = 'textual run ./src/tui/tui.py', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}
+client-dev = {cmd = 'textual run ./src/tui/tui.py --dev', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}
 
 [tool.hatch.metadata]
 allow-direct-references = true
