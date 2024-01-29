@@ -54,7 +54,7 @@ async def save_template(name: str, template: dict):
         json.dump(template, f)
 
 
-async def load_table(name: str, schema: str, columns: Optional[tuple[Data.Field]] = None) -> Data.Data:
+async def load_table(name: str, schema: str, columns: Optional[tuple[Data.Field]] = None) -> IO.Result:
     query = Query.select_values(schema=schema, table=name, columns=columns)
     return await IO.db_transaction(_DB_POOL, query)
 

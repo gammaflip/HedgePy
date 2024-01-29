@@ -5,6 +5,23 @@ import struct
 from abc import ABC, abstractmethod
 
 
+_MESSAGE_SCHEMA = {
+    "type": "object",
+    "required": ["header", "content"],
+    "properties": {
+        "header": {
+            "type": "object",
+            "required": ["id", "message_type"],
+            "properties": {
+                "id": {"type": "string", "format": "uuid"},
+                "message_type": {"enum": ["data", "instruction"], "default": "string"}
+            }
+        },
+        "content": {"type": "string"}
+    }
+}
+
+
 FMT_HEADER = "!16s2b"
 FMT_DELIM = "x"
 DELIM = b"\x00\x00\x00"

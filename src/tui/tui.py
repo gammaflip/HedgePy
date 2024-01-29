@@ -4,7 +4,7 @@ from pathlib import Path
 from textual import work
 from textual.app import ComposeResult, App
 from textual.reactive import reactive
-from textual.widgets import TabbedContent, Label, Footer
+from textual.widgets import TabbedContent, Label, Footer, TabPane
 
 from src import config
 from src.api import client
@@ -32,10 +32,12 @@ class HedgePyApp(App):
         self.logged_in = await client.pong()
 
     def compose(self) -> ComposeResult:
-        yield Label(f"{config.PROJECT_ENV['NAME']} Client", id="AppTopBarLabel")
-        with TabbedContent(id="ContentAreaContainer"):
-            yield content.data.DataTab()
-            yield content.templates.TemplateTab()
+        yield Label(f"{config.PROJECT_ENV['NAME']} Client", id="AppHeader")
+        with TabbedContent(id="ContentArea"):
+            with TabPane("database"):
+                yield content.data.DataTree()
+            with TabPane("templates"):
+                yield content.templates.TemplateTab()
         yield Footer()
 
     def watch_logged_in(self, logged_in: bool) -> None:
@@ -51,7 +53,7 @@ class HedgePyApp(App):
             dbname=message.dbname,
             port=message.dbport
         )
-        await self.query_one(content.data.DataTab).init()
+        await self.query_one(content.data.DataTree).init()
 
     @work
     async def db_transaction(self, request: IO.DBRequest) -> IO.Result:
@@ -60,12 +62,12 @@ class HedgePyApp(App):
     async def on_request(self, request):
         request, callback = request.request, request.callback
         worker = self.db_transaction(request)
-
         if callback:
             await worker.wait()
             await callback(worker.result)
 
 
 if __name__ == "__main__":
-    app = HedgePyApp()
-    asyncio.run(app.run_async())
+    asyncio.run(
+        HedgePyApp().run_async()
+    )

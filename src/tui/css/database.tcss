@@ -1,4 +1,3 @@
-DatabaseTree {
+DataTabTree {
     dock: left;
-    width: 30%;
 }

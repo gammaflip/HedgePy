@@ -4,5 +4,5 @@
     <option name="enabledOnReformat" value="true" />
     <option name="sdkName" value="Python 3.11 (HedgePy-j7-EnxJa)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (HedgePy-j7-EnxJa)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (HedgePy)" project-jdk-type="Python SDK" />
 </project>

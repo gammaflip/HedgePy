@@ -1,16 +1,9 @@
-#AppTopBarLabel {
+#AppHeader {
     dock: top;
-    height: 1;
     align-horizontal: center;
+    text-style: bold;
 }
 
-ContentAreaContainer {
-    height: 100%;
-}
-
-
-InputArea {
+Footer {
     dock: bottom;
-    height: 4;
-    align-horizontal: center;
 }

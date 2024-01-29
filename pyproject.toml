@@ -15,6 +15,7 @@ dependencies = [
     "psycopg_pool",
     "textual[syntax]>=0.47.1",
     "aiohttp[speedups]>=3.9.1",
+    "ibapi @ file:///B:/dev/git/HedgePy/lib/ibapi",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"

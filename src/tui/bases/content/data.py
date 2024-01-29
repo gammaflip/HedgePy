@@ -1,5 +1,5 @@
 from textual.app import ComposeResult
-from textual.widgets import TabPane, Tree, DataTable
+from textual.widgets import Tree, DataTable, Static
 from textual.message import Message
 from src.api.bases import IO, Query
 from typing import Optional, Callable
@@ -16,15 +16,21 @@ class Request(Message):
         self.callback = callback
 
 
-class DataTabView(DataTable):
+class DataView(DataTable):
     ...
 
 
-class DataTabTree(Tree):
+class DataTree(Tree):
     def __init__(self):
         super().__init__("/")
         self.show_root = False
         self.guide_depth = 2
+
+    async def init(self):
+        request = Query.snapshot()
+        request = Request(request)
+        request.callback = self.populate_tree
+        self.post_message(request)
 
     async def populate_tree(self, result: IO.Result):
         df = result.content.df
@@ -37,19 +43,3 @@ class DataTabTree(Tree):
                 tbl_li = df[(df['database']==db) & (df['schema']==sch)]['table'].unique()
                 for tbl in tbl_li:
                     sch_node.add_leaf(tbl)
-
-
-class DataTab(TabPane):
-
-    def __init__(self):
-        super().__init__('database')
-
-    async def init(self):
-        request = Query.snapshot()
-        request = Request(request)
-        tree_widget = self.query_one(DataTabTree)
-        request.callback = tree_widget.populate_tree
-        self.post_message(request)
-
-    def compose(self) -> ComposeResult:
-        yield DataTabTree()

@@ -5,6 +5,10 @@ from textual.screen import Screen
 from textual.widgets import Input, Label, Static
 
 
+class TabContent(Static):
+    ...
+
+
 class LoginPrompt(Static):
     _DBNAME = Input(value='hedgepy', placeholder='hedgepy', id='DBNameInput')
     _DBPORT = Input(value='5432', placeholder='5432', id='DBPortInput')
