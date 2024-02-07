@@ -1,29 +1,70 @@
-import asyncio; asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+import sys
+import asyncio
+from concurrent.futures.thread import ThreadPoolExecutor
 import aiohttp
+import threading
 import psycopg
 import psycopg_pool
+import queue
 from pandas import Timestamp
 from typing import Optional, Type, Literal
 from dataclasses import dataclass
 from contextlib import asynccontextmanager, AbstractAsyncContextManager
-from src.api.bases.Data import Data, Field, map_type
+from src.api.bases import Data, Logger
+from src import config
 
+
+class LogicThread(threading.Thread):
+    def __init__(self, queue_in: queue.Queue, queue_out: queue):
+        super().__init__(name='logic')
+        self.queue_in = queue_in
+        self.queue_out = queue_out
+        self.exit = False
+
+    def run(self):
+        while not self.exit:
+            if self.queue_in.empty():
+                continue
+            item = self.queue_in.get()
+            # Process the item
+            # ...
+            self.queue_out.put(result)
+
+
+class Controller(object):
+    def __init__(self, db_conn_info: dict, debug=True):
+        self.queue_in = queue.PriorityQueue()
+        self.queue_out = queue.PriorityQueue()
+        self.logic_thread = LogicThread(self.queue_in, self.queue_out)
+        self.http_pool = ThreadPoolExecutor()
+        self.db_pool = psycopg_pool.AsyncConnectionPool(
+            psycopg.conninfo.make_conninfo(**db_conn_info),
+            open=False
+        )
+
+        self.logger = Logger.logger()
+        self.logger.addHandler(Logger.handler(Logger.TODAY))
+
+        if debug:
+            self.logger.addHandler(Logger.handler(sys.stdout, lvl=0))
+
+        self.logger.info('controller initialized')
 
 @dataclass
 class DBRequest:
     body: psycopg.sql.SQL | psycopg.sql.Composed | str
     values: Optional[tuple | tuple[tuple]] = None
-    returns: Optional[tuple[Field, ...] | tuple[tuple[str, Type], ...]] = None
+    returns: Optional[tuple[Data.Field, ...] | tuple[tuple[str, Type], ...]] = None
 
     def __post_init__(self):
         if not isinstance(self.body, psycopg.sql.SQL | psycopg.sql.Composed):
             self.body = psycopg.sql.SQL(self.body)
-        if self.returns and not all((isinstance(ret, Field) for ret in self.returns)):
+        if self.returns and not all((isinstance(ret, Data.Field) for ret in self.returns)):
             returns = []
             for ret in self.returns:
-                if not isinstance(ret, Field):
+                if not isinstance(ret, Data.Field):
                     name, typ = ret
-                    returns.append(Field(name=name, dtype=typ))
+                    returns.append(Data.Field(name=name, dtype=typ))
                 else:
                     returns.append(ret)
             self.returns = tuple(returns)
@@ -56,7 +97,7 @@ class HTTPRequest:
 
 @dataclass
 class Result:
-    content: Data | Exception | None
+    content: Data.Data | Exception | None
 
     def __post_init__(self):
         self.timestamp = Timestamp.now()
@@ -96,7 +137,7 @@ async def db_transaction(pool: DBPool, request: DBRequest) -> Result:
                 await cur.execute(**request.to_cursor)
                 if request.returns:
                     res = await cur.fetchall()
-                    res = Data(fields=request.returns, records=res)
+                    res = Data.Data(fields=request.returns, records=res)
                 else:
                     res = None
     return Result(res)

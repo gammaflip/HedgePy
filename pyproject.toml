@@ -29,7 +29,10 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = ["textual-dev"]
+dev-dependencies = [
+    "textual-dev",
+    "ipython>=8.12.3",
+]
 
 [tool.rye.scripts]
 client = {cmd = 'textual run ./src/tui/tui.py', env = {PYTHONPATH = "B:/dev/git/HedgePy"}}

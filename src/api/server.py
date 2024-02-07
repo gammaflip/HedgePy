@@ -1,13 +1,18 @@
 import asyncio
+import aiohttp
+import psycopg
+import psycopg_pool
 from src import config
 from src.api import vendors
-from src.api.bases import IO, Message, Vendor, Query
+from src.api.bases import IO, Message, Vendor
 from typing import Optional
 from functools import partial
+from pathlib import Path
 
 
 VENDOR_DIR = Vendor.ResourceMap(vendors)
 MESSAGE_FACTORY = Message.MessageFactory()
+ROOT = Path(config.PROJECT_ENV['SERVER_ROOT'])
 
 
 async def read_one_message(reader: asyncio.StreamReader) -> Message.MessageType:
@@ -71,14 +76,10 @@ async def handle_connection(
             break
 
 
-async def main(db_conn_info: dict):
-    db_pool = IO.DBPool(conn_info=db_conn_info)
-    http_pool = IO.HTTPPool()
+async def run(db_conn_info: dict):
+    controller = IO.Controller(debug=False)
+    db_pool = psycopg_pool.AsyncConnectionPool(
+        conninfo=psycopg.conninfo.make_conninfo(**db_conn_info),
+        open=False)
 
-    async with db_pool, http_pool:
-        handler = partial(handle_connection, db_pool, http_pool)
-        host, port = config.PROJECT_ENV['SERVER_HOST'], config.PROJECT_ENV['SERVER_PORT']
-        server = await asyncio.start_server(handler, host=host, port=port)
 
-        async with server:
-            await server.serve_forever()

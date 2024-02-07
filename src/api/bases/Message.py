@@ -156,10 +156,26 @@ class Response(JsonMessage):
         "properties": {
             "corr_id": {"type": "string", "format": "uuid"},
             "content": {"type": "array", "items": {"type": "array"}},
+            "message": {"type": "string"},
             "error": {"type": "string"},
-            "callback": {"type": "string"}
         },
-        "required": ["corr_id", "content"]
+        "required": ["corr_id"]
+    }
+
+
+class Command(JsonMessage):
+    MESSAGE_TYPE = 5
+    SCHEMA = {
+        "type": "object",
+        "properties": {
+            "corr_id": {"type": "string", "format": "uuid"},
+            "action": {"type": "string"},
+            "args": {"type": "array", "items": {"type": "string"}},
+            "arg_types": {"type": "array", "items": {"type": "string"}},
+            "kwargs": {"type": "object"},
+            "kwarg_types": {"type": "object"}
+        },
+        "required": ["corr_id"]
     }
 
 

@@ -26,4 +26,5 @@ TemplateTab {
 .template-button {
     margin: 1;
     align-horizontal: center;
+    width: 100%;
 }
